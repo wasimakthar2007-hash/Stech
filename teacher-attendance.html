@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mark Attendance - S-TECH</title>
+    <link rel="stylesheet" href="css/variables.css">
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/pages.css">
+</head>
+<body class="dashboard-layout">
+    <aside class="sidebar">
+        <div>
+            <div class="logo">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+                S-TECH
+            </div>
+            <div class="tagline">Smart Attendance, Smarter Education</div>
+        </div>
+        <ul class="nav-links">
+            <li class="active">Mark Attendance</li>
+            <li class="logout-item" data-logout>Logout</li>
+        </ul>
+    </aside>
+
+    <main class="main-content teacher-main">
+        <header class="header">
+            <div>
+                <button class="menu-toggle">☰</button>
+                <h2>Mark Attendance</h2>
+                <p class="text-muted" style="font-size:0.9rem;">Teacher: <span id="teacher-name-display">Teacher</span></p>
+            </div>
+            <button class="theme-toggle" title="Toggle theme">🌓</button>
+        </header>
+
+        <!-- Sticky filter bar -->
+        <div class="attendance-filter-card glass-card">
+            <div class="filter-bar">
+                <div class="form-group">
+                    <label for="filter-class">Class</label>
+                    <select id="filter-class" class="form-control"></select>
+                </div>
+                <div class="form-group">
+                    <label for="filter-section">Section</label>
+                    <select id="filter-section" class="form-control"></select>
+                </div>
+                <div class="form-group">
+                    <label for="filter-subject">Subject</label>
+                    <select id="filter-subject" class="form-control"></select>
+                </div>
+                <div class="form-group">
+                    <label for="filter-date">Date</label>
+                    <input type="date" id="filter-date" class="form-control">
+                </div>
+            </div>
+            <div class="form-group search-box" style="max-width:100%;margin-top:0.5rem;">
+                <input type="search" id="student-search" class="form-control" placeholder="🔍 Search student by name or roll number...">
+            </div>
+        </div>
+
+        <!-- Quick stats -->
+        <div class="attendance-quick-stats">
+            <div class="quick-stat present"><span id="summary-present">0</span><small>Present</small></div>
+            <div class="quick-stat absent"><span id="summary-absent">0</span><small>Absent</small></div>
+            <div class="quick-stat late"><span id="summary-late">0</span><small>Late</small></div>
+            <div class="quick-stat leave"><span id="summary-leave">0</span><small>Leave</small></div>
+            <div class="quick-stat total"><span id="summary-total">0</span><small>Total</small></div>
+        </div>
+
+        <div class="section-header">
+            <div>
+                <h3>Students <span id="class-label" class="text-muted" style="font-size:0.9rem;font-weight:400;"></span></h3>
+                <p class="text-muted" style="font-size:0.8rem;margin-top:0.25rem;">Tap a student card or use quick buttons to mark attendance</p>
+            </div>
+            <div class="btn-group">
+                <button class="btn btn-success btn-sm" id="btn-all-present">✅ All Present</button>
+                <button class="btn btn-danger btn-sm" id="btn-all-absent">❌ All Absent</button>
+            </div>
+        </div>
+
+        <div id="attendance-grid" class="attendance-grid"></div>
+
+        <div id="empty-state" class="glass-card empty-state hidden">
+            <p>No students in this class/section yet.</p>
+            <p class="text-muted" style="font-size:0.85rem;">Ask admin to add students, or select a different class.</p>
+        </div>
+
+        <!-- Sticky save bar -->
+        <div class="sticky-save-bar">
+            <div class="save-bar-info">
+                <span id="save-status">Ready to save</span>
+                <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+            </div>
+            <button class="btn btn-success btn-save-large" id="btn-save">💾 Save Attendance</button>
+        </div>
+    </main>
+
+    <script src="js/data.js"></script>
+    <script src="js/theme.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/utils.js"></script>
+    <script src="js/teacher.js"></script>
+</body>
+</html>

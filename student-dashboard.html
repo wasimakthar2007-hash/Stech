@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Attendance - S-TECH</title>
+    <link rel="stylesheet" href="css/variables.css">
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/pages.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+</head>
+<body class="dashboard-layout">
+    <aside class="sidebar">
+        <div>
+            <div class="logo">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+                S-TECH
+            </div>
+            <div class="tagline">Smart Attendance, Smarter Education</div>
+        </div>
+        <ul class="nav-links">
+            <li class="active">My Attendance</li>
+            <li class="logout-item" data-logout>Logout</li>
+        </ul>
+    </aside>
+
+    <main class="main-content">
+        <header class="header">
+            <div>
+                <button class="menu-toggle">☰</button>
+                <h2>Student Dashboard</h2>
+                <p class="text-muted" style="font-size:0.9rem;">Welcome, <span id="student-name-display">Student</span></p>
+            </div>
+            <div class="header-actions">
+                <button class="btn btn-sm" id="btn-download-pdf">Download PDF Report</button>
+                <button class="theme-toggle" title="Toggle theme">🌓</button>
+            </div>
+        </header>
+
+        <div class="tabs">
+            <button class="tab-btn active" data-tab="overview">Overview</button>
+            <button class="tab-btn" data-tab="subject">Subject-wise</button>
+            <button class="tab-btn" data-tab="history">History</button>
+            <button class="tab-btn" data-tab="notifications">Notifications</button>
+        </div>
+
+        <!-- Overview Tab -->
+        <div id="tab-overview" class="tab-panel active">
+            <div class="glass-card mb-1">
+                <div class="student-profile-row">
+                    <img id="profile-photo" class="profile-photo-lg" src="" alt="Student photo">
+                    <div class="percent-ring" id="percent-ring" style="--pct: 0">
+                        <span>0%</span>
+                    </div>
+                    <div class="profile-details">
+                        <div class="profile-field"><label>Student Name</label><p id="profile-name">-</p></div>
+                        <div class="profile-field"><label>Student ID</label><p id="profile-id">-</p></div>
+                        <div class="profile-field"><label>Class</label><p id="profile-class">-</p></div>
+                        <div class="profile-field"><label>Roll Number</label><p id="profile-roll">-</p></div>
+                        <div class="profile-field"><label>Date of Birth</label><p id="profile-dob">-</p></div>
+                        <div class="profile-field"><label>Gender</label><p id="profile-gender">-</p></div>
+                        <div class="profile-field"><label>Parent</label><p id="profile-parent">-</p></div>
+                        <div class="profile-field"><label>Parent Mobile</label><p id="profile-parent-mobile">-</p></div>
+                        <div class="profile-field"><label>Email</label><p id="profile-email">-</p></div>
+                        <div class="profile-field"><label>Address</label><p id="profile-address">-</p></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="attendance-overview glass-card mb-1">
+                <div>
+                    <h3>Overall Attendance</h3>
+                    <p class="stat-value" id="overall-pct">0%</p>
+                </div>
+                <div class="chart-wrapper" style="flex:1">
+                    <canvas id="student-chart"></canvas>
+                </div>
+            </div>
+
+            <div class="glass-card">
+                <h3 class="mb-1">Calendar View — <span id="calendar-month"></span></h3>
+                <div class="calendar-grid" id="calendar-grid"></div>
+                <div class="calendar-legend">
+                    <span><span class="legend-dot" style="background:var(--success)"></span> Present</span>
+                    <span><span class="legend-dot" style="background:var(--danger)"></span> Absent</span>
+                    <span><span class="legend-dot" style="background:var(--warning)"></span> Late</span>
+                    <span><span class="legend-dot" style="background:var(--secondary)"></span> Leave</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Subject-wise Tab -->
+        <div id="tab-subject" class="tab-panel">
+            <div class="glass-card">
+                <h3 class="mb-1">Subject-wise Attendance</h3>
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr><th>Subject</th><th>Attendance %</th></tr></thead>
+                        <tbody id="subject-body"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- History Tab -->
+        <div id="tab-history" class="tab-panel">
+            <div class="glass-card">
+                <h3 class="mb-1">Attendance History</h3>
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr><th>Date</th><th>Subject</th><th>Status</th><th>Remarks</th></tr></thead>
+                        <tbody id="history-body"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Notifications Tab -->
+        <div id="tab-notifications" class="tab-panel">
+            <div class="glass-card">
+                <h3 class="mb-1">Notifications</h3>
+                <div id="notifications-list"></div>
+            </div>
+        </div>
+    </main>
+
+    <script src="js/data.js"></script>
+    <script src="js/theme.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/utils.js"></script>
+    <script src="js/charts.js"></script>
+    <script src="js/student.js"></script>
+</body>
+</html>

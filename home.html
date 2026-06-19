@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>S-TECH Attendance Management System</title>
+    <link rel="stylesheet" href="css/variables.css">
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/pages.css">
+</head>
+<body class="home-body">
+    <nav class="home-nav">
+        <div class="logo">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+            S-TECH
+        </div>
+        <button class="theme-toggle" title="Toggle Dark/Light Mode">🌓</button>
+    </nav>
+
+    <section class="hero animate-in">
+        <h1>S-TECH Attendance Management System</h1>
+        <p class="tagline-large">Smart Attendance, Smarter Education</p>
+        <p>A modern, enterprise-grade attendance platform for schools and educational institutions. Track attendance, generate reports, and keep everyone connected.</p>
+    </section>
+
+    <div class="demo-credentials">
+        <strong>Login Credentials:</strong><br>
+        <strong>Admin:</strong> admin@stech.edu / <strong>admin123</strong><br>
+        <strong>Teacher:</strong> T001 / sarah.johnson@stech.edu / Password: <strong>9876500001</strong> (mobile number)<br>
+        <strong>Student:</strong> S001 / ahmed.khan@stech.edu / Password: <strong>15032008</strong> (DOB as DDMMYYYY — born 15 Mar 2008)
+    </div>
+
+    <section class="role-cards">
+        <div class="role-card animate-in" data-role="admin">
+            <div class="role-icon">🛡️</div>
+            <h3>Admin</h3>
+            <p>Manage students, teachers, classes, reports, and school-wide settings.</p>
+            <button class="btn">Login as Admin</button>
+        </div>
+        <div class="role-card animate-in" data-role="teacher">
+            <div class="role-icon">👩‍🏫</div>
+            <h3>Teacher</h3>
+            <p>Mark attendance, edit records, and view class reports.</p>
+            <button class="btn">Login as Teacher</button>
+        </div>
+        <div class="role-card animate-in" data-role="student">
+            <div class="role-icon">🎓</div>
+            <h3>Student</h3>
+            <p>View your attendance, download reports, and receive notifications.</p>
+            <button class="btn">Login as Student</button>
+        </div>
+    </section>
+
+    <section class="features">
+        <div class="features-inner">
+            <h2>Platform Features</h2>
+            <div class="features-grid">
+                <div class="feature-item">
+                    <h4>Smart Attendance</h4>
+                    <p>Mark present, absent, late, or leave with bulk actions and one-click save.</p>
+                </div>
+                <div class="feature-item">
+                    <h4>Analytics & Reports</h4>
+                    <p>Monthly trends, class-wise stats, and export to PDF, Excel, or CSV.</p>
+                </div>
+                <div class="feature-item">
+                    <h4>Notifications</h4>
+                    <p>Alerts for low attendance, holidays, exams, and school announcements.</p>
+                </div>
+                <div class="feature-item">
+                    <h4>Role-Based Access</h4>
+                    <p>Separate dashboards for admins, teachers, and students with secure login.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <footer class="home-footer">
+        &copy; 2026 S-TECH Attendance Management System. Smart Attendance, Smarter Education.
+    </footer>
+
+    <!-- Admin Login Modal -->
+    <div class="modal-overlay" id="modal-admin">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>Admin Login</h3>
+                <button class="modal-close">&times;</button>
+            </div>
+            <form id="form-admin">
+                <div class="form-group">
+                    <label for="admin-name">Name</label>
+                    <input type="text" id="admin-name" class="form-control" placeholder="Administrator name">
+                </div>
+                <div class="form-group">
+                    <label for="admin-email">Email *</label>
+                    <input type="email" id="admin-email" class="form-control" required placeholder="admin@stech.edu">
+                </div>
+                <div class="form-group">
+                    <label for="admin-mobile">Mobile Number</label>
+                    <input type="tel" id="admin-mobile" class="form-control" placeholder="9876543210">
+                </div>
+                <div class="form-group">
+                    <label for="admin-password">Password *</label>
+                    <input type="password" id="admin-password" class="form-control" required>
+                </div>
+                <div class="form-error hidden" id="admin-error"></div>
+                <button type="submit" class="btn" style="width:100%;margin-top:0.5rem;">Login</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Teacher Login Modal -->
+    <div class="modal-overlay" id="modal-teacher">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>Teacher Login</h3>
+                <button class="modal-close">&times;</button>
+            </div>
+            <form id="form-teacher">
+                <div class="form-group">
+                    <label for="teacher-id">Teacher ID *</label>
+                    <input type="text" id="teacher-id" class="form-control" required placeholder="T001">
+                </div>
+                <div class="form-group">
+                    <label for="teacher-email">Email *</label>
+                    <input type="email" id="teacher-email" class="form-control" required placeholder="sarah.johnson@stech.edu">
+                </div>
+                <div class="form-group">
+                    <label for="teacher-password">Password (Mobile Number) *</label>
+                    <input type="password" id="teacher-password" class="form-control" required placeholder="Your registered mobile number">
+                </div>
+                <div class="form-error hidden" id="teacher-error"></div>
+                <button type="submit" class="btn" style="width:100%;margin-top:0.5rem;">Login</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Student Login Modal -->
+    <div class="modal-overlay" id="modal-student">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>Student Login</h3>
+                <button class="modal-close">&times;</button>
+            </div>
+            <form id="form-student">
+                <div class="form-group">
+                    <label for="student-id">Student ID *</label>
+                    <input type="text" id="student-id" class="form-control" required placeholder="S001">
+                </div>
+                <div class="form-group">
+                    <label for="student-email">Email *</label>
+                    <input type="email" id="student-email" class="form-control" required placeholder="ahmed.khan@stech.edu">
+                </div>
+                <div class="form-group">
+                    <label for="student-password">Password (Date of Birth) *</label>
+                    <input type="password" id="student-password" class="form-control" required placeholder="DDMMYYYY e.g. 15032008">
+                    <p class="password-hint" style="margin-top:0.35rem;">Enter your date of birth as DDMMYYYY (no slashes)</p>
+                </div>
+                <div class="form-error hidden" id="student-error"></div>
+                <button type="submit" class="btn" style="width:100%;margin-top:0.5rem;">Login</button>
+            </form>
+        </div>
+    </div>
+
+    <script src="js/data.js"></script>
+    <script src="js/theme.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/utils.js"></script>
+    <script>
+        document.querySelectorAll('.role-card').forEach(card => {
+            card.addEventListener('click', () => openModal('modal-' + card.dataset.role));
+            card.querySelector('.btn').addEventListener('click', (e) => {
+                e.stopPropagation();
+                openModal('modal-' + card.dataset.role);
+            });
+        });
+
+        function handleLogin(formId, role, getCredentials, errorId) {
+            document.getElementById(formId).addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const errEl = document.getElementById(errorId);
+                errEl.classList.add('hidden');
+                const result = await Auth.login(role, getCredentials());
+                if (result.success) {
+                    Auth.setSession(result.session);
+                    Toast.show('Login successful!', 'success');
+                    Auth.redirectForRole(role);
+                } else {
+                    errEl.textContent = result.message;
+                    errEl.classList.remove('hidden');
+                }
+            });
+        }
+
+        handleLogin('form-admin', 'admin', () => ({
+            email: document.getElementById('admin-email').value.trim(),
+            password: document.getElementById('admin-password').value
+        }), 'admin-error');
+
+        handleLogin('form-teacher', 'teacher', () => ({
+            teacherId: document.getElementById('teacher-id').value.trim(),
+            email: document.getElementById('teacher-email').value.trim(),
+            password: document.getElementById('teacher-password').value
+        }), 'teacher-error');
+
+        handleLogin('form-student', 'student', () => ({
+            studentId: document.getElementById('student-id').value.trim(),
+            email: document.getElementById('student-email').value.trim(),
+            password: document.getElementById('student-password').value
+        }), 'student-error');
+
+        const session = Auth.getSession();
+        if (session) Auth.redirectForRole(session.role);
+    </script>
+</body>
+</html>

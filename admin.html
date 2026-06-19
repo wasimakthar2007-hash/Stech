@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - S-TECH</title>
+    <link rel="stylesheet" href="css/variables.css">
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/pages.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="dashboard-layout">
+    <aside class="sidebar">
+        <div>
+            <div class="logo">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+                S-TECH
+            </div>
+            <div class="tagline">Smart Attendance, Smarter Education</div>
+        </div>
+        <ul class="nav-links">
+            <li class="active" data-panel="dashboard">Dashboard</li>
+            <li data-panel="students">Manage Students</li>
+            <li data-panel="teachers">Manage Teachers</li>
+            <li data-panel="reports">Reports</li>
+            <li data-panel="notifications">Notifications</li>
+            <li class="logout-item" data-logout>Logout</li>
+        </ul>
+    </aside>
+
+    <main class="main-content">
+        <header class="header">
+            <div>
+                <button class="menu-toggle">☰</button>
+                <h2>Admin Dashboard</h2>
+                <p class="text-muted" style="font-size:0.9rem;">Welcome back, <span id="admin-name-display">Administrator</span></p>
+            </div>
+            <div class="header-actions">
+                <button class="theme-toggle" title="Toggle theme">🌓</button>
+            </div>
+        </header>
+
+        <!-- Dashboard Panel -->
+        <section id="panel-dashboard" class="panel-section active">
+            <div class="dashboard-grid">
+                <div class="glass-card">
+                    <div class="stat-title">Total Students</div>
+                    <div class="stat-value" id="stat-students">0</div>
+                </div>
+                <div class="glass-card">
+                    <div class="stat-title">Total Teachers</div>
+                    <div class="stat-value" id="stat-teachers">0</div>
+                </div>
+                <div class="glass-card border-success">
+                    <div class="stat-title">Present Today</div>
+                    <div class="stat-value" id="stat-present">0</div>
+                </div>
+                <div class="glass-card border-danger">
+                    <div class="stat-title">Absent Today</div>
+                    <div class="stat-value" id="stat-absent">0</div>
+                </div>
+                <div class="glass-card border-primary">
+                    <div class="stat-title">Attendance %</div>
+                    <div class="stat-value" id="stat-percentage">0%</div>
+                </div>
+            </div>
+
+            <div class="glass-card">
+                <h3 class="mb-1">Monthly Attendance Trend</h3>
+                <div class="chart-wrapper tall"><canvas id="chart-trend"></canvas></div>
+            </div>
+
+            <div class="charts-row">
+                <div class="glass-card">
+                    <h3 class="mb-1">Class-wise Attendance</h3>
+                    <div class="chart-wrapper"><canvas id="chart-class"></canvas></div>
+                </div>
+                <div class="glass-card">
+                    <h3 class="mb-1">At-Risk Students</h3>
+                    <div class="chart-wrapper"><canvas id="chart-risk"></canvas></div>
+                </div>
+            </div>
+
+            <div class="glass-card mt-2">
+                <div class="section-header">
+                    <h3>Recent Attendance Activity</h3>
+                    <div class="btn-group">
+                        <button class="btn btn-sm" id="export-pdf">Export PDF</button>
+                        <button class="btn btn-sm btn-secondary" id="export-excel">Export Excel</button>
+                        <button class="btn btn-sm btn-outline" id="export-csv">Export CSV</button>
+                    </div>
+                </div>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr><th>Roll No</th><th>Student Name</th><th>Class</th><th>Status</th><th>Time</th></tr>
+                        </thead>
+                        <tbody id="recent-activity-body"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- Students Panel -->
+        <section id="panel-students" class="panel-section">
+            <div class="section-header">
+                <h3>Manage Students</h3>
+                <button class="btn" id="btn-add-student">+ Add Student</button>
+            </div>
+            <div class="form-group search-box">
+                <input type="search" id="student-search" class="form-control" placeholder="Search students...">
+            </div>
+            <div class="glass-card">
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr><th>Photo</th><th>ID</th><th>Name</th><th>Class</th><th>Roll</th><th>DOB / Password</th><th>Email</th><th>Actions</th></tr>
+                        </thead>
+                        <tbody id="students-table-body"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- Teachers Panel -->
+        <section id="panel-teachers" class="panel-section">
+            <div class="section-header">
+                <h3>Manage Teachers</h3>
+                <button class="btn" id="btn-add-teacher">+ Add Teacher</button>
+            </div>
+            <div class="form-group search-box">
+                <input type="search" id="teacher-search" class="form-control" placeholder="Search teachers...">
+            </div>
+            <div class="glass-card">
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr><th>ID</th><th>Name</th><th>Department</th><th>Email</th><th>Mobile</th><th>Actions</th></tr>
+                        </thead>
+                        <tbody id="teachers-table-body"></tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="glass-card mt-2">
+                <h3 class="mb-1">Assign Teacher to Class</h3>
+                <form id="assign-form" class="filter-bar">
+                    <div class="form-group">
+                        <label>Class</label>
+                        <select id="assign-class" class="form-control"></select>
+                    </div>
+                    <div class="form-group">
+                        <label>Teacher</label>
+                        <select id="assign-teacher" class="form-control"></select>
+                    </div>
+                    <button type="submit" class="btn">Assign</button>
+                </form>
+            </div>
+        </section>
+
+        <!-- Reports Panel -->
+        <section id="panel-reports" class="panel-section">
+            <h3>School Reports</h3>
+            <div class="glass-card mt-2" id="report-summary"></div>
+            <div class="btn-group mt-2">
+                <button class="btn" id="export-pdf-2" onclick="document.getElementById('export-pdf').click()">Daily Report (PDF)</button>
+                <button class="btn btn-secondary" onclick="document.getElementById('export-csv').click()">Weekly Report (CSV)</button>
+                <button class="btn btn-outline" onclick="document.getElementById('export-csv').click()">Monthly Report (CSV)</button>
+            </div>
+        </section>
+
+        <!-- Notifications Panel -->
+        <section id="panel-notifications" class="panel-section">
+            <h3>Send Notifications</h3>
+            <div class="glass-card mt-2">
+                <p class="text-muted">Notification system ready. Use admin tools to send alerts for holidays, exams, and announcements.</p>
+                <div class="form-group mt-2">
+                    <label>Message</label>
+                    <textarea class="form-control" rows="3" placeholder="School announcement..."></textarea>
+                </div>
+                <button class="btn" onclick="Toast.show('Notification sent to all users!', 'success')">Send Announcement</button>
+            </div>
+        </section>
+    </main>
+
+    <!-- Student Form Modal -->
+    <div class="modal-overlay" id="modal-student-form">
+        <div class="modal modal-wide">
+            <div class="modal-header">
+                <h3 id="student-form-title">Add Student</h3>
+                <button class="modal-close">&times;</button>
+            </div>
+            <form id="student-form">
+                <input type="hidden" id="student-form-id">
+                <input type="hidden" id="sf-photo-data">
+
+                <div class="photo-upload-area">
+                    <img id="sf-photo-preview" class="photo-preview" src="" alt="Student photo">
+                    <div>
+                        <label class="btn btn-outline photo-upload-btn">
+                            Upload Photo
+                            <input type="file" id="sf-photo" accept="image/*">
+                        </label>
+                        <p class="password-hint">JPG/PNG, max 500KB recommended</p>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group"><label>Name *</label><input id="sf-name" class="form-control" required></div>
+                    <div class="form-group"><label>Email *</label><input id="sf-email" type="email" class="form-control" required></div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Date of Birth *</label>
+                        <input id="sf-dob" type="date" class="form-control" required>
+                        <p class="password-hint">Login password = DOB as DDMMYYYY (auto-generated)</p>
+                        <p class="password-hint" id="sf-password-preview"></p>
+                    </div>
+                    <div class="form-group"><label>Gender</label><select id="sf-gender" class="form-control"><option>Male</option><option>Female</option><option>Other</option></select></div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Class *</label>
+                        <select id="sf-class" class="form-control" required></select>
+                    </div>
+                    <div class="form-group">
+                        <label>Section *</label>
+                        <select id="sf-section" class="form-control" required></select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group"><label>Roll Number *</label><input id="sf-roll" class="form-control" required></div>
+                    <div class="form-group"><label>Student ID</label><input id="sf-student-id" class="form-control" placeholder="Auto-generated if empty"></div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group"><label>Parent Name</label><input id="sf-parent" class="form-control"></div>
+                    <div class="form-group"><label>Parent Mobile</label><input id="sf-parent-mobile" class="form-control"></div>
+                </div>
+                <div class="form-group"><label>Address</label><input id="sf-address" class="form-control"></div>
+                <button type="submit" class="btn" style="width:100%">Save Student</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Teacher Form Modal -->
+    <div class="modal-overlay" id="modal-teacher-form">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 id="teacher-form-title">Add Teacher</h3>
+                <button class="modal-close">&times;</button>
+            </div>
+            <form id="teacher-form">
+                <input type="hidden" id="teacher-form-id">
+                <div class="form-group"><label>Name *</label><input id="tf-name" class="form-control" required></div>
+                <div class="form-group"><label>Department *</label><input id="tf-dept" class="form-control" required></div>
+                <div class="form-group"><label>Email *</label><input id="tf-email" type="email" class="form-control" required></div>
+                <div class="form-group"><label>Mobile *</label><input id="tf-mobile" class="form-control" required>
+                    <p class="password-hint">Login password = mobile number (unique per teacher)</p>
+                </div>
+                <button type="submit" class="btn" style="width:100%">Save Teacher</button>
+            </form>
+        </div>
+    </div>
+
+    <script src="js/data.js"></script>
+    <script src="js/theme.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/utils.js"></script>
+    <script src="js/charts.js"></script>
+    <script src="js/admin.js"></script>
+</body>
+</html>
