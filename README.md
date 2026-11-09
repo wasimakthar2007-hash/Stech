@@ -16,6 +16,10 @@ A responsive attendance portal built with Next.js, Node.js API routes, and SQL. 
 
 The local database is created automatically at `data/attendance.sqlite`, and the first administrator account is initialized from `ADMIN_PASSWORD` on first run. The database file is local and is ignored by Git.
 
+## Install Stech
+
+Open the login page in a supported browser and select **Install Stech app**. If the browser does not show an install prompt, open its menu and choose **Install app** or **Add to Home screen**. On iPhone or iPad, open the page in Safari, tap **Share**, then choose **Add to Home Screen**. The app can show an offline notice when there is no connection; attendance and sign-in still require the server.
+
 ## Hosted deployment
 
 For a hosted deployment, configure a persistent Neon/Postgres connection with `DATABASE_URL`, plus `JWT_SECRET`, `ADMIN_PASSWORD`, and `SETUP_KEY` in the hosting provider's server environment. Deploy the app, then initialize the database:
@@ -27,6 +31,8 @@ curl -X POST https://YOUR-APP.example.com/api/setup \
 ```
 
 The setup endpoint creates the SQL tables and stores a hash of the server-configured administrator password. Re-running setup with the setup key updates the first administrator's password to the configured value and applies new attendance tables. Do not use the local SQLite file as persistent storage on serverless hosting.
+
+Check the deployment configuration at `https://YOUR-APP.example.com/api/health`. Its `environment` object only reports whether `DATABASE_URL`, `JWT_SECRET`, and `SETUP_KEY` are present; it never returns their values. If Vercel reports `JWT_SECRET: false`, add a non-empty `JWT_SECRET` under the correct Vercel project and the environments being deployed, then create a new deployment so the serverless functions receive it. Do not prefix it with `NEXT_PUBLIC_`. Vercel deployments also require a persistent hosted database configured with `DATABASE_URL`.
 
 ## Sign-in
 

@@ -71,8 +71,9 @@ export const sql = (strings, ...values) => {
   return runLocalQuery(strings, values);
 };
 const key = () => {
-  if (!process.env.JWT_SECRET) throw new Error('JWT_SECRET is not configured');
-  return new TextEncoder().encode(process.env.JWT_SECRET);
+  const secret = process.env.JWT_SECRET?.trim();
+  if (!secret) throw new Error('JWT_SECRET is not configured');
+  return new TextEncoder().encode(secret);
 };
 
 export async function setSession(u) {

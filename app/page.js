@@ -94,6 +94,10 @@ export default function Page() {
   const [ready, setReady] = useState(false);
   const [tab, setTab] = useState('');
   const [serviceError, setServiceError] = useState('');
+  const [installPrompt, setInstallPrompt] = useState(null);
+  const [installMessage, setInstallMessage] = useState('');
+  const [installError, setInstallError] = useState('');
+  const [installed, setInstalled] = useState(false);
 
   const loadSession = async () => {
     const health = await api('health');
@@ -111,8 +115,44 @@ export default function Page() {
 
   useEffect(() => { loadSession(); }, []);
 
+  useEffect(() => {
+    if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone) {
+      setInstalled(true);
+    }
+
+    const captureInstallPrompt = event => {
+      event.preventDefault();
+      setInstallPrompt(event);
+    };
+    const markInstalled = () => {
+      setInstalled(true);
+      setInstallPrompt(null);
+      setInstallMessage('Stech has been installed on your device.');
+    };
+
+    window.addEventListener('beforeinstallprompt', captureInstallPrompt);
+    window.addEventListener('appinstalled', markInstalled);
+
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/service-worker.js')
+        .catch(error => {
+          console.error('Stech could not register its service worker:', error);
+          setInstallError('The install option is temporarily unavailable. You can still use this website normally.');
+        });
+    } else {
+      setInstallError('App installation is not supported by this browser. You can still use this website normally.');
+    }
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', captureInstallPrompt);
+      window.removeEventListener('appinstalled', markInstalled);
+    };
+  }, []);
+
   if (!ready) return <div className="loading"><div><div className="spinner" />Preparing your portal…</div></div>;
-  if (!me) return <Login onDone={loadSession} serviceError={serviceError} />;
+  if (!me) return <Login onDone={loadSession} serviceError={serviceError}
+    installPrompt={installPrompt} installMessage={installMessage} installError={installError}
+    installed={installed} onInstalled={setInstalled} onInstallMessage={setInstallMessage} />;
 
   const tabs = ROLE_TABS[me.role] || [];
   const activeTab = tabs.includes(tab) ? tab : tabs[0];
@@ -187,7 +227,7 @@ function TabButton({ item, active, onClick }) {
   </button>;
 }
 
-function Login({ onDone, serviceError }) {
+function Login({ onDone, serviceError, installPrompt, installMessage, installError, installed, onInstalled, onInstallMessage }) {
   const [role, setRole] = useState('student');
   const [form, setForm] = useState({ name: '', password: '', date_of_birth: '' });
   const [showPassword, setShowPassword] = useState(false);
@@ -210,6 +250,32 @@ function Login({ onDone, serviceError }) {
     setRole(nextRole);
     setForm({ name: '', password: '', date_of_birth: '' });
     setError('');
+  };
+  const installApp = async () => {
+    setError('');
+    if (installed) return;
+    if (installPrompt) {
+      try {
+        await installPrompt.prompt();
+        const choice = await installPrompt.userChoice;
+        if (choice.outcome === 'accepted') {
+          onInstallMessage('Finishing the Stech installation…');
+        } else {
+          onInstallMessage('Installation was canceled. You can install Stech whenever you’re ready.');
+        }
+        return;
+      } catch (installFailure) {
+        console.error('Stech installation prompt failed:', installFailure);
+        onInstallMessage('The install prompt could not be opened. Try your browser’s menu instead.');
+        return;
+      }
+    }
+
+    const isAppleMobile = /iPhone|iPad|iPod/.test(navigator.userAgent)
+      || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    onInstallMessage(isAppleMobile
+      ? 'To install Stech, tap Share in Safari, then choose “Add to Home Screen”.'
+      : 'Open your browser menu and choose “Install app” or “Add to Home screen” to install Stech.');
   };
 
   return <div className="app-shell">
@@ -254,6 +320,18 @@ function Login({ onDone, serviceError }) {
           </span>
         </label>}
         <button className="primary-button login-submit" disabled={busy}>{busy ? 'Signing in…' : 'Continue to portal'}</button>
+        <div className="install-app-area">
+          <button className="install-button" type="button" onClick={installApp} disabled={installed}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"
+              strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M12 15V3m0 12 4-4m-4 4-4-4" />
+              <path d="M5 17v3a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3" />
+            </svg>
+            {installed ? 'App installed' : 'Install Stech app'}
+          </button>
+          {installMessage && <p className="install-message" role="status">{installMessage}</p>}
+          {installError && <p className="install-message install-error" role="status">{installError}</p>}
+        </div>
         <p style={{ color: '#9299a8', fontSize: 11, lineHeight: 1.6, textAlign: 'center', margin: '15px 0 0' }}>
           {role === 'student' ? 'Use the date of birth registered by your administrator.' :
             role === 'teacher' ? 'Your administrator provides your sign-in password.' : 'Administrator access is protected.'}

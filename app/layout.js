@@ -5,9 +5,15 @@ import '@fontsource/noto-naskh-arabic/arabic-700.css';
 export const metadata = {
   title: 'Stech | Attendance Portal',
   description: 'Stech attendance and learning portal.',
+  manifest: '/manifest.webmanifest',
   icons: {
     icon: '/madrasa-logo.png',
     apple: '/madrasa-logo.png'
+  },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'Stech'
   }
 };
 
@@ -68,6 +74,13 @@ a{color:inherit;text-decoration:none}
 .primary-button{background:var(--navy);color:#fff;box-shadow:0 8px 16px #101b4524}
 .primary-button:hover:not(:disabled){background:#1b2b61;transform:translateY(-1px);box-shadow:0 11px 19px #101b4528}
 .login-submit{width:100%;margin-top:6px;min-height:49px}
+.install-app-area{margin-top:12px}
+.install-button{width:100%;min-height:45px;display:flex;align-items:center;justify-content:center;gap:9px;border:1px solid #e6e1ed;border-radius:10px;background:#fff;color:var(--navy);font-size:12px;font-weight:800;transition:background .18s,border-color .18s,transform .18s}
+.install-button:hover:not(:disabled){background:#f8f5fb;border-color:#c9a6e8;transform:translateY(-1px)}
+.install-button:disabled{color:var(--green);background:#f0f8f4;border-color:#cfeadd;opacity:1;cursor:default}
+.install-button svg{width:17px;height:17px}
+.install-message{margin:8px 0 0;color:#58637e;font-size:11px;line-height:1.55;text-align:center}
+.install-error{color:#85620c}
 .secondary-button{color:var(--navy);background:#f1eff7}
 .secondary-button:hover:not(:disabled){background:#e8e1f1}
 .danger-button{background:#fff0f0;color:var(--maroon);padding:8px 11px}

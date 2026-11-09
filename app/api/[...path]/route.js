@@ -17,11 +17,16 @@ async function handleRequest(req, { params }) {
   const query = req.nextUrl.searchParams;
 
   if (a === 'health' && method === 'GET') {
-    if (!isLocalDatabase() && !process.env.DATABASE_URL) {
-      return J({ error: 'Server setup is incomplete: configure DATABASE_URL in the server environment.' }, 503);
+    const environment = {
+      DATABASE_URL: Boolean(process.env.DATABASE_URL?.trim()),
+      JWT_SECRET: Boolean(process.env.JWT_SECRET?.trim()),
+      SETUP_KEY: Boolean(process.env.SETUP_KEY?.trim())
+    };
+    if (process.env.VERCEL === '1' && !environment.DATABASE_URL) {
+      return J({ ready: false, error: 'Server setup is incomplete: configure DATABASE_URL in the Vercel server environment.', environment }, 503);
     }
-    if (!process.env.JWT_SECRET) {
-      return J({ error: 'Server setup is incomplete: configure JWT_SECRET in the server environment.' }, 503);
+    if (!environment.JWT_SECRET) {
+      return J({ ready: false, error: 'Server setup is incomplete: configure JWT_SECRET in the server environment.', environment }, 503);
     }
     const [tables] = isLocalDatabase()
       ? await sql`select
@@ -35,7 +40,7 @@ async function handleRequest(req, { params }) {
           to_regclass('public.holidays') is not null as holidays_ready,
           to_regclass('public.attendance_sessions') is not null as sessions_ready`;
     if (!tables?.users_ready || !tables?.attendance_ready || !tables?.holidays_ready || !tables?.sessions_ready) {
-      return J({ error: 'The database is missing attendance setup. Configure SETUP_KEY and ADMIN_PASSWORD, then run the one-time database setup again.' }, 503);
+      return J({ ready: false, error: 'The database is missing attendance setup. Configure SETUP_KEY and ADMIN_PASSWORD, then run the one-time database setup again.', environment }, 503);
     }
     const [admin] = await sql`select exists(select 1 from users where role='admin') as ready`;
     if (!admin?.ready) {
@@ -43,10 +48,10 @@ async function handleRequest(req, { params }) {
         const passwordHash = await bcrypt.hash(process.env.ADMIN_PASSWORD, 12);
         await sql`insert into users(name,password_hash,role) values('Admin',${passwordHash},'admin')`;
       } else {
-        return J({ error: 'The administrator account has not been initialized. Set ADMIN_PASSWORD and run the one-time database setup.' }, 503);
+        return J({ ready: false, error: 'The administrator account has not been initialized. Set ADMIN_PASSWORD and run the one-time database setup.', environment }, 503);
       }
     }
-    return J({ ready: true });
+    return J({ ready: true, environment });
   }
 
   if (a === 'setup' && method === 'POST') {
