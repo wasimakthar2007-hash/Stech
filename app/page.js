@@ -8,10 +8,16 @@ const api = async (path, body, method) => {
     response = await fetch('/api/' + path, {
       method: method || (body ? 'POST' : 'GET'),
       headers: { 'content-type': 'application/json' },
-      body: body ? JSON.stringify(body) : undefined
+      body: body ? JSON.stringify(body) : undefined,
+      cache: 'no-store'
     });
   } catch {
-    return { error: 'Unable to reach the server. Check your connection and try again.' };
+    const offline = typeof navigator !== 'undefined' && !navigator.onLine;
+    return {
+      error: offline
+        ? 'Your device is offline. Reconnect and try again.'
+        : `Could not contact /api/${path}. Check your connection and confirm the Vercel deployment is ready.`
+    };
   }
 
   const contentType = response.headers.get('content-type') || '';
@@ -101,7 +107,7 @@ export default function Page() {
   const [installed, setInstalled] = useState(false);
 
   const loadSession = async () => {
-    const health = await api('health');
+    const [health, data] = await Promise.all([api('health'), api('me')]);
     if (health.error) {
       setServiceError(health.error);
       setMe(null);
@@ -109,7 +115,6 @@ export default function Page() {
       return;
     }
     setServiceError('');
-    const data = await api('me');
     setMe(data.error ? null : data);
     setReady(true);
   };
@@ -295,6 +300,9 @@ function Login({ onDone, serviceError, installPrompt, installMessage, installErr
         <h2>Welcome back</h2>
         <p className="intro">Choose your portal to continue securely.</p>
         <Message text={serviceError} type="warning" />
+        {serviceError && <a className="health-link" href="/api/health" target="_blank" rel="noreferrer">
+          View deployment health diagnostics
+        </a>}
         <div className="role-picker" role="group" aria-label="Choose your portal">
           {['student', 'teacher', 'admin'].map(option =>
             <button type="button" key={option} className={`role-option${role === option ? ' active' : ''}`}
@@ -359,14 +367,16 @@ function Users({ role }) {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const load = async () => {
-    const result = await api('users?role=' + role);
+    const [result, classResult] = await Promise.all([
+      api('users?role=' + role),
+      isStudent ? Promise.resolve(null) : api('classes')
+    ]);
     if (result.error) {
       setError(result.error);
       return;
     }
     setList(result);
-    if (!isStudent) {
-      const classResult = await api('classes');
+    if (classResult) {
       if (classResult.error) setError(classResult.error);
       else setClasses(classResult.map(item => item.class_name));
     }

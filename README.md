@@ -22,21 +22,37 @@ Open the login page in a supported browser and select **Install Stech app**. If 
 
 ## Hosted deployment
 
-For a hosted deployment, configure a persistent Neon/Postgres connection in the hosting provider's server environment. Set `DATABASE_URL`, or use the Vercel Postgres `POSTGRES_URL` variable; the app also recognizes `POSTGRES_PRISMA_URL` and `POSTGRES_URL_NON_POOLING`. Set `JWT_SECRET`, `ADMIN_PASSWORD`, and `SETUP_KEY` as well. Attach a Postgres database integration to the same Vercel project or copy its connection URL into one of these variables, enable it for Production and any other deployed environments, and redeploy after changing variables. Do not use SQLite on Vercel because serverless filesystem storage is not persistent. Deploy the app, then initialize the database:
+### Vercel deployment checklist
+
+1. Import `wasimakthar2007-hash/Stech` into Vercel. Set the project **Root Directory** to `./` (the repository root containing `package.json`) and the framework preset to **Next.js**. The build command is `npm run build`.
+2. Create or select a **Neon** PostgreSQL database. This project uses `@neondatabase/serverless`, which requires a Neon host; other PostgreSQL providers are not supported by this driver. Copy the provider's PostgreSQL connection string. It should look like `postgresql://USER:PASSWORD@ep-example.region.aws.neon.tech/DATABASE?sslmode=require`. Keep the actual URL private.
+3. In **Project → Settings → Environment Variables**, add these server-only variables (do not prefix them with `NEXT_PUBLIC_`):
+
+   | Name | Value |
+   | --- | --- |
+   | `DATABASE_URL` | Neon connection string from step 2 |
+   | `JWT_SECRET` | A new, long, random secret |
+   | `ADMIN_PASSWORD` | A private admin password you choose |
+   | `SETUP_KEY` | A separate, random one-time setup key |
+
+   Select every environment where you will deploy (at least **Production**; also **Preview** if testing preview deployments), save the variables, and redeploy. Vercel does not add newly saved values to deployments that are already running. The app also recognizes `POSTGRES_URL`, `POSTGRES_PRISMA_URL`, and `POSTGRES_URL_NON_POOLING`, but setting `DATABASE_URL` explicitly is recommended.
+4. Open `https://YOUR-DEPLOYMENT.vercel.app/api/health`. Before setup, it may report that attendance tables or the admin account are not initialized. Confirm `DATABASE_URL` is present and the Neon connection succeeds before proceeding. The endpoint reports only variable presence, database host, and sanitized diagnostics; it never returns secrets.
+5. Initialize the schema and admin account once using the setup endpoint. In PowerShell, enter the actual deployment URL when prompted and enter the `SETUP_KEY` privately:
 
 ```powershell
 $setupKey = Read-Host "Vercel SETUP_KEY"
 $body = @{ key = $setupKey } | ConvertTo-Json
+$appUrl = Read-Host "Vercel deployment URL (for example https://your-app.vercel.app)"
 Invoke-RestMethod -Method Post `
-  -Uri "https://YOUR-APP.example.com/api/setup" `
+  -Uri "$($appUrl.TrimEnd('/'))/api/setup" `
   -ContentType "application/json" `
   -Body $body
-Remove-Variable setupKey, body
+Remove-Variable setupKey, body, appUrl
 ```
 
-The setup endpoint creates the SQL tables and stores a hash of the server-configured administrator password. Re-running setup with the setup key updates the first administrator's password to the configured value and applies new attendance tables. Do not use the local SQLite file as persistent storage on serverless hosting.
+The setup endpoint creates the SQL tables and stores a hash of the server-configured administrator password. Re-running setup updates the first administrator's password to the currently configured `ADMIN_PASSWORD`; do not rerun it unless you intend to change the admin password. Do not use the local SQLite file as persistent storage on serverless hosting.
 
-Check the deployment configuration at `https://YOUR-APP.example.com/api/health`. It runs `select 1`, checks schema readiness, and returns a sanitized `databaseError` reason/hint and connection host (never the URL or credentials). The `environment` object reports only whether variables are present, and `database.source` identifies which variable name was selected. Vercel must use a supported Neon/Postgres URL; SQLite is local-only. If the URL is present but unreachable, use the health reason and Vercel Function logs to check the URL, credentials, Neon project/compute state, or permissions.
+After setup, reload `/api/health`; it should return `"ready": true`. If sign-in says it cannot reach the server, first open `/api/health` in the same deployment: a JSON response shows the exact database/configuration problem, while an unavailable health route points to a deployment or routing issue. If a database URL is missing, add `DATABASE_URL` to the correct Vercel project and environment, save, then create a new deployment. If the URL is present but connection fails, use the sanitized health reason and Vercel Function logs to check its host, credentials, Neon project status, and permissions. Do not use SQLite on Vercel because serverless filesystem storage is not persistent.
 
 ## Sign-in
 

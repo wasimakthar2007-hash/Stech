@@ -89,6 +89,7 @@ a{color:inherit;text-decoration:none}
 .message.error{background:#fff0f0;color:#9b2835;border:1px solid #f4d0d3}
 .message.warning{background:linear-gradient(120deg,#fff8e6,#fffdf6);color:#745813;border:1px solid #ead8a3}
 .message.success{background:#edf8f3;color:#216b52;border:1px solid #cfeadd}
+.health-link{display:inline-block;margin:-7px 0 15px 3px;color:#61417a;font-size:12px;font-weight:800;text-decoration:underline;text-underline-offset:3px}
 .portal-layout{display:grid;grid-template-columns:235px minmax(0,1fr);gap:27px;align-items:start;padding:28px 0 35px;flex:1}
 .sidebar{position:sticky;top:22px;border-radius:19px;border:1px solid #fff;background:#ffffffbe;padding:17px 12px;box-shadow:0 12px 34px #101b4508;backdrop-filter:blur(12px)}
 .sidebar .brand{padding:4px 8px 18px;border-bottom:1px solid var(--line);margin-bottom:15px}

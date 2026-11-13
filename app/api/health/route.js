@@ -10,7 +10,10 @@ import {
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const response = (data, status = 200) => NextResponse.json(data, { status });
+const response = (data, status = 200) => NextResponse.json(data, {
+  status,
+  headers: { 'Cache-Control': 'no-store, max-age=0' }
+});
 
 function environmentStatus() {
   const database = getDatabaseConfig();
@@ -44,42 +47,41 @@ export async function GET() {
     );
     return response({
       ready: false,
-      error: databaseError.hint,
+      error: 'DATABASE_URL is missing in the Vercel server environment. Add a Neon PostgreSQL connection string in Project Settings → Environment Variables, select the deployment environment, save, and redeploy.',
       databaseError,
       ...diagnostics
     }, 503);
   }
 
   try {
-    const [connection] = await sql`select 1 as database_connected`;
-    if (Number(connection?.database_connected) !== 1) {
-      return response({
-        ready: false,
-        error: 'The database connection test did not return the expected result.',
-        ...diagnostics
-      }, 503);
-    }
-
     if (!process.env.JWT_SECRET?.trim()) {
       return response({
         ready: false,
         error: 'Configure JWT_SECRET in the server environment before enabling sign-in.',
-        database: { ...diagnostics.database, connected: true },
+        database: diagnostics.database,
         environment: diagnostics.environment
       }, 503);
     }
 
     const [tables] = isLocalDatabase()
-      ? await sql`select
+      ? await sql`select 1 as database_connected,
         exists(select 1 from sqlite_master where type='table' and name='users') as users_ready,
         exists(select 1 from sqlite_master where type='table' and name='attendance') as attendance_ready,
         exists(select 1 from sqlite_master where type='table' and name='holidays') as holidays_ready,
         exists(select 1 from sqlite_master where type='table' and name='attendance_sessions') as sessions_ready`
-      : await sql`select
+      : await sql`select 1 as database_connected,
         to_regclass('public.users') is not null as users_ready,
         to_regclass('public.attendance') is not null as attendance_ready,
         to_regclass('public.holidays') is not null as holidays_ready,
         to_regclass('public.attendance_sessions') is not null as sessions_ready`;
+
+    if (Number(tables?.database_connected) !== 1) {
+      return response({
+        ready: false, error: 'The database connection test did not return the expected result.',
+        database: diagnostics.database,
+        environment: diagnostics.environment
+      }, 503);
+    }
 
     if (!tables?.users_ready || !tables?.attendance_ready || !tables?.holidays_ready || !tables?.sessions_ready) {
       return response({

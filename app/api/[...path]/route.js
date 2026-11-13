@@ -60,7 +60,7 @@ async function handleRequest(req, { params }) {
     if (!process.env.ADMIN_PASSWORD) return J({ error: 'Configure ADMIN_PASSWORD on the server before setup' }, 500);
     if (process.env.VERCEL === '1' && !getDatabaseConfig().url) {
       return J({
-        error: 'Configure a persistent Postgres connection URL in Vercel before initializing the database.',
+        error: 'DATABASE_URL is missing in the Vercel server environment. Add a Neon PostgreSQL connection string in Project Settings → Environment Variables, select the deployment environment, save, and redeploy.',
         ...environmentStatus()
       }, 503);
     }
@@ -456,7 +456,7 @@ async function handle(req, context) {
     });
     if (process.env.VERCEL === '1' && !database.url) {
       return J({
-        error: 'The database is not configured. Add a supported Postgres URL to the Vercel server environment, then redeploy.',
+        error: 'DATABASE_URL is missing in the Vercel server environment. Add a Neon PostgreSQL connection string in Project Settings → Environment Variables, select the deployment environment, save, and redeploy.',
         ...environmentStatus()
       }, 503);
     }
