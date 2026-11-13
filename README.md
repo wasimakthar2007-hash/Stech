@@ -54,6 +54,15 @@ The setup endpoint creates the SQL tables and stores a hash of the server-config
 
 After setup, reload `/api/health`; it should return `"ready": true`. If sign-in says it cannot reach the server, first open `/api/health` in the same deployment: a JSON response shows the exact database/configuration problem, while an unavailable health route points to a deployment or routing issue. If a database URL is missing, add `DATABASE_URL` to the correct Vercel project and environment, save, then create a new deployment. If the URL is present but connection fails, use the sanitized health reason and Vercel Function logs to check its host, credentials, Neon project status, and permissions. Do not use SQLite on Vercel because serverless filesystem storage is not persistent.
 
+### Neon preview branches for pull requests
+
+The GitHub Actions workflow at `.github/workflows/neon_workflow.yml` creates a Neon branch for opened, reopened, or updated pull requests and deletes that branch when the pull request closes. In GitHub, open **Settings → Secrets and variables → Actions** and add:
+
+- Repository variable `NEON_PROJECT_ID` with `lucky-violet-70297017`.
+- Repository secret `NEON_API_KEY` with a Neon API key authorized for that project.
+
+The workflow does not print or publish the branch connection string. Preview branch URLs are not automatically copied into Vercel; configure that separately if preview deployments need to use their matching Neon branch.
+
 ## Sign-in
 
 - **Admin:** Select Admin and enter the server-configured administrator password.
