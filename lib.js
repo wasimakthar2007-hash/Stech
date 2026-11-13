@@ -6,9 +6,133 @@ import { SignJWT, jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
 
 let localDatabase;
+let neonClient;
+let neonClientUrl;
 const localDatabasePath = path.join(process.cwd(), 'data', 'attendance.sqlite');
+const postgresUrlVariables = [
+  'DATABASE_URL',
+  'POSTGRES_URL',
+  'POSTGRES_PRISMA_URL',
+  'POSTGRES_URL_NON_POOLING'
+];
+
+function cleanDatabaseUrl(raw) {
+  let value = String(raw || '').trim();
+  value = value.replace(/^psql\s+/i, '').replace(/^DATABASE_URL\s*=\s*/i, '');
+  value = value.replace(/^(['"`])([\s\S]*)\1;?$/, '$2').trim();
+  return value.replace(/;$/, '').trim();
+}
+
+export function getDatabaseConfig() {
+  const source = postgresUrlVariables.find(name => process.env[name]?.trim());
+  const url = source ? cleanDatabaseUrl(process.env[source]) : '';
+  let host = null;
+  let valid = false;
+  try {
+    const parsed = new URL(url);
+    valid = ['postgres:', 'postgresql:'].includes(parsed.protocol) &&
+      Boolean(parsed.hostname && parsed.username && parsed.pathname.length > 1);
+    host = parsed.hostname || null;
+  } catch {
+    // Keep diagnostics safe when a connection string is malformed.
+  }
+  return {
+    url,
+    source: source || null,
+    host,
+    valid,
+    isNeonHost: Boolean(host && /(^|\.)neon\.(tech|build)$/i.test(host))
+  };
+}
+
+export function describeDatabaseError(error) {
+  const config = getDatabaseConfig();
+  const text = String(error?.message || '');
+  const code = error?.code || error?.sourceError?.code || error?.cause?.code ||
+    error?.sourceError?.cause?.code || '';
+  const base = {
+    code: /^[A-Za-z0-9_-]+$/.test(String(code)) ? String(code) : String(error?.name || 'UNKNOWN'),
+    host: config.host,
+    source: config.source
+  };
+
+  if (!config.url) {
+    if (process.env.VERCEL !== '1') {
+      return {
+        ...base,
+        reason: 'local_sqlite_error',
+        hint: 'The local SQLite query failed. Check the server log for the SQL error.'
+      };
+    }
+    return { ...base, reason: 'no_url', hint: 'No database URL variable is set on the server.' };
+  }
+  if (!config.valid || /not a valid URL/i.test(text)) {
+    return {
+      ...base,
+      reason: 'invalid_url',
+      hint: 'The URL must be a PostgreSQL connection string. Remove surrounding quotes, spaces, and any leading psql command.'
+    };
+  }
+  if (!config.isNeonHost) {
+    return {
+      ...base,
+      reason: 'unsupported_host',
+      hint: 'The configured host is not a Neon host. @neondatabase/serverless requires a Neon connection URL; use a Neon URL or configure a driver that supports this provider.'
+    };
+  }
+  if (/password authentication failed|28P01|28000/i.test(`${text} ${code}`)) {
+    return {
+      ...base,
+      reason: 'auth_failed',
+      hint: 'The database rejected the username or password. Copy a fresh connection string from the database provider and update the deployment environment.'
+    };
+  }
+  if (/does not exist|3D000/i.test(`${text} ${code}`)) {
+    return {
+      ...base,
+      reason: 'database_missing',
+      hint: 'The database named in the connection URL does not exist on this server.'
+    };
+  }
+  if (/ENOTFOUND|EAI_AGAIN/i.test(`${text} ${code}`)) {
+    return {
+      ...base,
+      reason: 'host_not_found',
+      hint: 'The database host could not be resolved. Check that the host is copied correctly and the provider project is active.'
+    };
+  }
+  if (/ETIMEDOUT|ECONNREFUSED|timeout|fetch failed/i.test(`${text} ${code}`)) {
+    return {
+      ...base,
+      reason: 'unreachable',
+      hint: 'Neon did not respond. Check the project and compute status, provider limits, and network restrictions.'
+    };
+  }
+  if (/42P01/.test(String(code)) || /relation .* does not exist/i.test(text)) {
+    return {
+      ...base,
+      reason: 'tables_missing',
+      hint: 'The database is reachable but its attendance tables are missing. Run POST /api/setup once.'
+    };
+  }
+  if (/42501|permission denied/i.test(`${text} ${code}`)) {
+    return {
+      ...base,
+      reason: 'permission_denied',
+      hint: 'The database user lacks permission for this operation. Grant the required schema/table permissions or use the provider owner connection.'
+    };
+  }
+  return {
+    ...base,
+    reason: 'unknown',
+    hint: 'The database request failed. Check the Vercel function logs for the provider error.'
+  };
+}
 
 function getLocalDatabase() {
+  if (process.env.VERCEL === '1') {
+    throw new Error('SQLite is available only for local development. Configure a Neon/Postgres URL on Vercel.');
+  }
   if (!localDatabase) {
     mkdirSync(path.dirname(localDatabasePath), { recursive: true });
     localDatabase = new DatabaseSync(localDatabasePath);
@@ -22,7 +146,12 @@ function getLocalDatabase() {
         role TEXT NOT NULL CHECK(role IN ('admin','teacher','student')),
         class_name TEXT,
         roll_no TEXT,
-        date_of_birth DATE
+        date_of_birth DATE,
+        mother_name TEXT,
+        father_name TEXT,
+        father_occupation TEXT,
+        mother_occupation TEXT,
+        gender TEXT
       );
       CREATE TABLE IF NOT EXISTS attendance (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -45,7 +174,40 @@ function getLocalDatabase() {
         marked_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         PRIMARY KEY(class_name,date)
       );
+      CREATE TABLE IF NOT EXISTS classes (
+        class_name TEXT PRIMARY KEY
+      );
+      CREATE TABLE IF NOT EXISTS messages (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT NOT NULL,
+        content TEXT NOT NULL,
+        audience TEXT NOT NULL CHECK(audience IN ('students','teachers')),
+        message_date DATE NOT NULL,
+        author_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+      INSERT OR IGNORE INTO classes(class_name)
+        SELECT DISTINCT trim(class_name) FROM users
+        WHERE role IN ('student','teacher') AND trim(coalesce(class_name,'')) <> '';
+      CREATE INDEX IF NOT EXISTS users_role_name_idx ON users(role, lower(trim(name)));
+      CREATE INDEX IF NOT EXISTS users_role_class_roll_idx ON users(role, class_name, roll_no, name);
+      CREATE INDEX IF NOT EXISTS attendance_student_date_idx ON attendance(student_id, date);
     `);
+
+    const userColumns = localDatabase.prepare('PRAGMA table_info(users)').all();
+    const existingColumns = new Set(userColumns.map(column => column.name));
+    for (const [name, type] of [
+      ['date_of_birth', 'DATE'],
+      ['mother_name', 'TEXT'],
+      ['father_name', 'TEXT'],
+      ['father_occupation', 'TEXT'],
+      ['mother_occupation', 'TEXT'],
+      ['gender', 'TEXT']
+    ]) {
+      if (!existingColumns.has(name)) {
+        localDatabase.exec(`ALTER TABLE users ADD COLUMN ${name} ${type}`);
+      }
+    }
   }
   return localDatabase;
 }
@@ -65,11 +227,33 @@ function runLocalQuery(strings, values) {
   return Promise.resolve([]);
 }
 
-export const isLocalDatabase = () => !process.env.DATABASE_URL;
+export const isLocalDatabase = () => !getDatabaseConfig().url && process.env.VERCEL !== '1';
+
 export const sql = (strings, ...values) => {
-  if (process.env.DATABASE_URL) return neon(process.env.DATABASE_URL)(strings, ...values);
+  const config = getDatabaseConfig();
+  if (config.url) {
+    if (!config.valid) {
+      throw Object.assign(new Error('The configured database URL is invalid.'), { code: 'INVALID_DATABASE_URL' });
+    }
+    if (!config.isNeonHost) {
+      throw Object.assign(new Error('The configured URL host is not supported by the Neon serverless driver.'), {
+        code: 'UNSUPPORTED_DATABASE_HOST'
+      });
+    }
+    if (neonClientUrl !== config.url) {
+      neonClient = neon(config.url);
+      neonClientUrl = config.url;
+    }
+    return neonClient(strings, ...values);
+  }
+  if (process.env.VERCEL === '1') {
+    throw Object.assign(new Error('A Neon/Postgres URL is required on Vercel; SQLite is local-only.'), {
+      code: 'DATABASE_URL_MISSING'
+    });
+  }
   return runLocalQuery(strings, values);
 };
+
 const key = () => {
   const secret = process.env.JWT_SECRET?.trim();
   if (!secret) throw new Error('JWT_SECRET is not configured');

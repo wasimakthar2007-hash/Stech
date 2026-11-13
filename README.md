@@ -1,6 +1,6 @@
 # Stech Attendance Portal
 
-A responsive attendance portal built with Next.js, Node.js API routes, and SQL. Local development uses a persistent SQLite database; hosted deployments can use Neon/Postgres by setting `DATABASE_URL`. The institution crest is used as the Stech app logo from `public/madrasa-logo.png` without modification.
+A responsive attendance portal built with Next.js, Node.js API routes, and SQL. Local development uses a persistent SQLite database; Vercel deployments require Neon/Postgres. The Neon serverless driver only supports Neon database hosts. The institution crest is used as the Stech app logo from `public/madrasa-logo.png` without modification.
 
 ## Run locally
 
@@ -22,17 +22,21 @@ Open the login page in a supported browser and select **Install Stech app**. If 
 
 ## Hosted deployment
 
-For a hosted deployment, configure a persistent Neon/Postgres connection with `DATABASE_URL`, plus `JWT_SECRET`, `ADMIN_PASSWORD`, and `SETUP_KEY` in the hosting provider's server environment. Deploy the app, then initialize the database:
+For a hosted deployment, configure a persistent Neon/Postgres connection in the hosting provider's server environment. Set `DATABASE_URL`, or use the Vercel Postgres `POSTGRES_URL` variable; the app also recognizes `POSTGRES_PRISMA_URL` and `POSTGRES_URL_NON_POOLING`. Set `JWT_SECRET`, `ADMIN_PASSWORD`, and `SETUP_KEY` as well. Attach a Postgres database integration to the same Vercel project or copy its connection URL into one of these variables, enable it for Production and any other deployed environments, and redeploy after changing variables. Do not use SQLite on Vercel because serverless filesystem storage is not persistent. Deploy the app, then initialize the database:
 
-```sh
-curl -X POST https://YOUR-APP.example.com/api/setup \
-  -H "content-type: application/json" \
-  -d '{"key":"YOUR_SETUP_KEY"}'
+```powershell
+$setupKey = Read-Host "Vercel SETUP_KEY"
+$body = @{ key = $setupKey } | ConvertTo-Json
+Invoke-RestMethod -Method Post `
+  -Uri "https://YOUR-APP.example.com/api/setup" `
+  -ContentType "application/json" `
+  -Body $body
+Remove-Variable setupKey, body
 ```
 
 The setup endpoint creates the SQL tables and stores a hash of the server-configured administrator password. Re-running setup with the setup key updates the first administrator's password to the configured value and applies new attendance tables. Do not use the local SQLite file as persistent storage on serverless hosting.
 
-Check the deployment configuration at `https://YOUR-APP.example.com/api/health`. Its `environment` object only reports whether `DATABASE_URL`, `JWT_SECRET`, and `SETUP_KEY` are present; it never returns their values. If Vercel reports `JWT_SECRET: false`, add a non-empty `JWT_SECRET` under the correct Vercel project and the environments being deployed, then create a new deployment so the serverless functions receive it. Do not prefix it with `NEXT_PUBLIC_`. Vercel deployments also require a persistent hosted database configured with `DATABASE_URL`.
+Check the deployment configuration at `https://YOUR-APP.example.com/api/health`. It runs `select 1`, checks schema readiness, and returns a sanitized `databaseError` reason/hint and connection host (never the URL or credentials). The `environment` object reports only whether variables are present, and `database.source` identifies which variable name was selected. Vercel must use a supported Neon/Postgres URL; SQLite is local-only. If the URL is present but unreachable, use the health reason and Vercel Function logs to check the URL, credentials, Neon project/compute state, or permissions.
 
 ## Sign-in
 
@@ -44,7 +48,8 @@ Check the deployment configuration at `https://YOUR-APP.example.com/api/health`.
 ## Portals and permissions
 
 - **Admin:** Add or remove students and teachers; record Present, Absent, or Leave for any class; manage institution-wide holidays/leave; view attendance counts and percentages.
-- **Teacher:** Enter the class assigned by the administrator to load its student roster, then record Present or Absent. After one teacher submits, that class is hidden from other teachers for that date; the submitting teacher can reopen it. Future dates and institution holidays are locked, and admin-marked Leave cannot be changed.
-- **Student:** View their own attendance totals, percentage, history, and the holiday list.
+- **Teacher:** Select any registered class to load its student roster, then record Present or Absent for today. After one teacher submits, that class is locked for that date. Institution holidays are locked, and admin-marked Leave cannot be changed.
+- **Student:** View their own attendance totals, percentage, history, holiday list, and student announcements.
+- **Messages:** Administrators can publish announcements for students or teachers and delete them; teachers can publish announcements for students. Students can view announcements but cannot edit or delete them. Messages are grouped by their selected date, newest first.
 
 The admin attendance portal lists teacher submissions by date, class, teacher, and number of students marked. The application enforces class assignment and duplicate-submission rules in its Node API as well as in the interface.

@@ -120,6 +120,7 @@ a{color:inherit;text-decoration:none}
 .hero-banner p{position:relative;z-index:1;font-size:13px;line-height:1.7;color:#d4d9e8;margin:0;max-width:530px}
 .banner-mark{position:absolute;right:29px;bottom:-24px;width:150px;height:150px;object-fit:contain;opacity:.92}
 .content-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.content-grid>.message{grid-column:1/-1}
 .card{background:linear-gradient(145deg,#ffffffed,#ffffffc7);border:1px solid #ffffffed;border-radius:17px;padding:21px;box-shadow:var(--shadow),0 1px 0 #fff inset;backdrop-filter:blur(16px);min-width:0;animation:rise .35s ease both;transition:transform .24s,box-shadow .24s}
 .card:hover{box-shadow:0 24px 60px #101b4517,0 1px 0 #fff inset}
 .card.full{grid-column:1/-1}
@@ -156,6 +157,20 @@ tbody tr:hover td{background:#fcfbfe}
 .toolbar .field{margin:0;min-width:150px}
 .toolbar .field-control{height:42px}
 .toolbar .field-control.compact{width:160px}
+.message-input{height:132px;padding:12px 14px;resize:vertical;line-height:1.55}
+.message-form-footer{display:flex;align-items:center;justify-content:space-between;gap:12px;color:var(--muted);font-size:11px}
+.message-date-group+.message-date-group{margin-top:20px}
+.message-date-group>h3{margin:0 0 10px;color:#8b6a14;font-size:11px;letter-spacing:.1em;text-transform:uppercase}
+.announcement-list{display:grid;gap:11px}
+.announcement-card{min-width:0;padding:16px;border:1px solid var(--line);border-radius:13px;background:linear-gradient(145deg,#fff,#fbfaff);box-shadow:0 8px 24px #101b4508}
+.announcement-topline,.announcement-footer{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.announcement-topline time,.announcement-footer{color:var(--muted);font-size:10px}
+.announcement-audience{border-radius:20px;padding:5px 9px;background:#f3eafa;color:#654879;font-size:9px;font-weight:800;letter-spacing:.07em;text-transform:uppercase}
+.announcement-audience.audience-teachers{background:#fff3e7;color:#915b19}
+.announcement-card h4{margin:12px 0 5px;color:var(--navy);font-size:15px;overflow-wrap:anywhere}
+.announcement-content{margin:0 0 14px;color:#59647e;font-size:13px;line-height:1.7;white-space:pre-wrap;overflow-wrap:anywhere}
+.announcement-footer{border-top:1px solid #edf0f5;padding-top:10px}
+.announcement-footer .danger-button{padding:7px 10px}
 .holiday-callout{padding:12px 14px;border-radius:10px;background:#fff7e2;color:#775d16;font-size:12px;margin:12px 0 15px}
 .attendance-footer{display:flex;justify-content:space-between;align-items:center;gap:12px;padding-top:16px}
 .attendance-footer span{font-size:11px;color:var(--muted)}
@@ -189,7 +204,7 @@ export default function RootLayout({ children }) {
     <head>
       <meta name="viewport" content="width=device-width,initial-scale=1" />
       <meta name="theme-color" content="#101B45" />
-      <style>{css}</style>
+      <style dangerouslySetInnerHTML={{ __html: css }} />
     </head>
     <body>{children}</body>
   </html>;

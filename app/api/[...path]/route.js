@@ -1,14 +1,53 @@
 import bcrypt from 'bcryptjs';
 import { NextResponse } from 'next/server';
-import { sql, setSession, getSession, clearSession, isLocalDatabase } from '../../../lib';
+import {
+  sql,
+  setSession,
+  getSession,
+  clearSession,
+  isLocalDatabase,
+  getDatabaseConfig,
+  describeDatabaseError
+} from '../../../lib';
 
 const J = (data, status = 200) => NextResponse.json(data, { status });
 export const runtime = 'nodejs';
+const environmentStatus = () => {
+  const database = getDatabaseConfig();
+  return {
+    environment: {
+      DATABASE_URL: Boolean(process.env.DATABASE_URL?.trim()),
+      POSTGRES_URL: Boolean(process.env.POSTGRES_URL?.trim()),
+      POSTGRES_PRISMA_URL: Boolean(process.env.POSTGRES_PRISMA_URL?.trim()),
+      POSTGRES_URL_NON_POOLING: Boolean(process.env.POSTGRES_URL_NON_POOLING?.trim()),
+      JWT_SECRET: Boolean(process.env.JWT_SECRET?.trim()),
+      SETUP_KEY: Boolean(process.env.SETUP_KEY?.trim())
+    },
+    databaseUrlSource: database.source,
+    databaseHost: database.host,
+    databaseUrlValid: database.valid,
+    neonCompatibleHost: database.isNeonHost
+  };
+};
 const validDate = value => {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value || '')) return false;
   const parsed = new Date(`${value}T00:00:00Z`);
   return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
 };
+
+async function ensureClassesTable() {
+  await sql`create table if not exists classes(class_name text primary key)`;
+  if (isLocalDatabase()) {
+    await sql`insert or ignore into classes(class_name)
+      select distinct trim(class_name) from users
+      where role in ('student','teacher') and trim(coalesce(class_name,'')) <> ''`;
+  } else {
+    await sql`insert into classes(class_name)
+      select distinct trim(class_name) from users
+      where role in ('student','teacher') and trim(coalesce(class_name,'')) <> ''
+      on conflict(class_name) do nothing`;
+  }
+}
 
 async function handleRequest(req, { params }) {
   const [a, b] = params.path;
@@ -16,47 +55,15 @@ async function handleRequest(req, { params }) {
   const body = method === 'POST' ? await req.json().catch(() => ({})) : {};
   const query = req.nextUrl.searchParams;
 
-  if (a === 'health' && method === 'GET') {
-    const environment = {
-      DATABASE_URL: Boolean(process.env.DATABASE_URL?.trim()),
-      JWT_SECRET: Boolean(process.env.JWT_SECRET?.trim()),
-      SETUP_KEY: Boolean(process.env.SETUP_KEY?.trim())
-    };
-    if (process.env.VERCEL === '1' && !environment.DATABASE_URL) {
-      return J({ ready: false, error: 'Server setup is incomplete: configure DATABASE_URL in the Vercel server environment.', environment }, 503);
-    }
-    if (!environment.JWT_SECRET) {
-      return J({ ready: false, error: 'Server setup is incomplete: configure JWT_SECRET in the server environment.', environment }, 503);
-    }
-    const [tables] = isLocalDatabase()
-      ? await sql`select
-          exists(select 1 from sqlite_master where type='table' and name='users') as users_ready,
-          exists(select 1 from sqlite_master where type='table' and name='attendance') as attendance_ready,
-          exists(select 1 from sqlite_master where type='table' and name='holidays') as holidays_ready,
-          exists(select 1 from sqlite_master where type='table' and name='attendance_sessions') as sessions_ready`
-      : await sql`select
-          to_regclass('public.users') is not null as users_ready,
-          to_regclass('public.attendance') is not null as attendance_ready,
-          to_regclass('public.holidays') is not null as holidays_ready,
-          to_regclass('public.attendance_sessions') is not null as sessions_ready`;
-    if (!tables?.users_ready || !tables?.attendance_ready || !tables?.holidays_ready || !tables?.sessions_ready) {
-      return J({ ready: false, error: 'The database is missing attendance setup. Configure SETUP_KEY and ADMIN_PASSWORD, then run the one-time database setup again.', environment }, 503);
-    }
-    const [admin] = await sql`select exists(select 1 from users where role='admin') as ready`;
-    if (!admin?.ready) {
-      if (isLocalDatabase() && process.env.ADMIN_PASSWORD) {
-        const passwordHash = await bcrypt.hash(process.env.ADMIN_PASSWORD, 12);
-        await sql`insert into users(name,password_hash,role) values('Admin',${passwordHash},'admin')`;
-      } else {
-        return J({ ready: false, error: 'The administrator account has not been initialized. Set ADMIN_PASSWORD and run the one-time database setup.', environment }, 503);
-      }
-    }
-    return J({ ready: true, environment });
-  }
-
   if (a === 'setup' && method === 'POST') {
     if (!process.env.SETUP_KEY || body.key !== process.env.SETUP_KEY) return J({ error: 'Invalid setup key' }, 403);
     if (!process.env.ADMIN_PASSWORD) return J({ error: 'Configure ADMIN_PASSWORD on the server before setup' }, 500);
+    if (process.env.VERCEL === '1' && !getDatabaseConfig().url) {
+      return J({
+        error: 'Configure a persistent Postgres connection URL in Vercel before initializing the database.',
+        ...environmentStatus()
+      }, 503);
+    }
 
     await sql`create table if not exists users(
       id serial primary key,
@@ -66,10 +73,21 @@ async function handleRequest(req, { params }) {
       role text not null check(role in ('admin','teacher','student')),
       class_name text,
       roll_no text,
-      date_of_birth date
+      date_of_birth date,
+      mother_name text,
+      father_name text,
+      father_occupation text,
+      mother_occupation text,
+      gender text
     )`;
     if (!isLocalDatabase()) {
       await sql`alter table users add column if not exists date_of_birth date`;
+      await sql`alter table users
+        add column if not exists mother_name text,
+        add column if not exists father_name text,
+        add column if not exists father_occupation text,
+        add column if not exists mother_occupation text,
+        add column if not exists gender text`;
       await sql`alter table users alter column email drop not null`;
     }
     await sql`create table if not exists attendance(
@@ -86,13 +104,36 @@ async function handleRequest(req, { params }) {
       title text,
       type text default 'general'
     )`;
-    await sql`create table if not exists attendance_sessions(
-      class_name text not null,
-      date date not null,
-      teacher_id int references users(id) on delete set null,
-      marked_at timestamptz not null default now(),
-      primary key(class_name,date)
+    await ensureClassesTable();
+    await sql`create table if not exists messages(
+      id serial primary key,
+      title text not null,
+      content text not null,
+      audience text not null check(audience in ('students','teachers')),
+      message_date date not null,
+      author_id int references users(id) on delete set null,
+      created_at text not null default current_timestamp
     )`;
+    if (isLocalDatabase()) {
+      await sql`create table if not exists attendance_sessions(
+        class_name text not null,
+        date date not null,
+        teacher_id int references users(id) on delete set null,
+        marked_at text not null default current_timestamp,
+        primary key(class_name,date)
+      )`;
+    } else {
+      await sql`create table if not exists attendance_sessions(
+        class_name text not null,
+        date date not null,
+        teacher_id int references users(id) on delete set null,
+        marked_at timestamptz not null default now(),
+        primary key(class_name,date)
+      )`;
+    }
+    await sql`create index if not exists users_role_name_idx on users(role,lower(trim(name)))`;
+    await sql`create index if not exists users_role_class_roll_idx on users(role,class_name,roll_no,name)`;
+    await sql`create index if not exists attendance_student_date_idx on attendance(student_id,date)`;
 
     const hash = await bcrypt.hash(process.env.ADMIN_PASSWORD, 12);
     const [existingAdmin] = await sql`select id from users where role='admin' order by id limit 1`;
@@ -136,39 +177,119 @@ async function handleRequest(req, { params }) {
   const session = await getSession();
   if (!session) return J({ error: 'Login required' }, 401);
   const admin = session.role === 'admin';
+  const teacher = session.role === 'teacher';
   if (a === 'me') return J(session);
+
+  if (a === 'classes' && method === 'GET') {
+    if (!admin && !teacher) return J({ error: 'Admin or teacher access required' }, 403);
+    await ensureClassesTable();
+    return J(await sql`select class_name from classes order by class_name`);
+  }
+  if (a === 'classes' && method === 'POST') {
+    if (!admin) return J({ error: 'Admin only' }, 403);
+    await ensureClassesTable();
+    const className = body.class_name?.trim();
+    if (!className || className.length > 80) {
+      return J({ error: 'Enter a class name of 1 to 80 characters.' }, 400);
+    }
+    await sql`insert into classes(class_name) values(${className})
+      on conflict(class_name) do nothing`;
+    return J({ ok: true, class_name: className });
+  }
 
   if (a === 'users') {
     if (!admin) return J({ error: 'Admin only' }, 403);
     if (method === 'GET') {
       const role = query.get('role');
       if (!['teacher', 'student'].includes(role)) return J({ error: 'Invalid role' }, 400);
-      return J(await sql`select id,name,class_name,roll_no from users
-        where role=${role} order by class_name,roll_no,name`);
+      return role === 'student'
+        ? J(await sql`select id,name,class_name,roll_no,mother_name,father_name,
+            father_occupation,mother_occupation,gender from users
+            where role=${role} order by class_name,roll_no,name`)
+        : J(await sql`select id,name,class_name,roll_no from users
+            where role=${role} order by class_name,roll_no,name`);
     }
     if (method === 'POST') {
       const { name, role, class_name, roll_no } = body;
       if (!name?.trim() || !['teacher', 'student'].includes(role) || !class_name?.trim()) {
         return J({ error: 'Name, role, and class are required' }, 400);
       }
+      await ensureClassesTable();
       if (role === 'student') {
         if (!validDate(body.date_of_birth)) return J({ error: 'A valid date of birth is required' }, 400);
+        if (body.gender && !['male', 'female'].includes(body.gender)) {
+          return J({ error: 'Gender must be male or female' }, 400);
+        }
         const [duplicate] = await sql`select id from users where role='student'
           and lower(name)=lower(${name.trim()}) and date_of_birth=${body.date_of_birth}::date`;
         if (duplicate) return J({ error: 'A student with this name and date of birth already exists' }, 409);
         const passwordHash = await bcrypt.hash(body.date_of_birth, 12);
-        await sql`insert into users(name,password_hash,role,class_name,roll_no,date_of_birth)
-          values(${name.trim()},${passwordHash},'student',${class_name.trim()},${roll_no?.trim() || null},${body.date_of_birth}::date)`;
+        await sql`insert into users(name,password_hash,role,class_name,roll_no,date_of_birth,
+            mother_name,father_name,father_occupation,mother_occupation,gender)
+          values(${name.trim()},${passwordHash},'student',${class_name.trim()},${roll_no?.trim() || null},
+            ${body.date_of_birth}::date,${body.mother_name?.trim() || null},${body.father_name?.trim() || null},
+            ${body.father_occupation?.trim() || null},${body.mother_occupation?.trim() || null},
+            ${body.gender || null})`;
+        await sql`insert into classes(class_name) values(${class_name.trim()})
+          on conflict(class_name) do nothing`;
       } else {
         if (!body.password?.trim()) return J({ error: 'Set a password for the teacher' }, 400);
         const passwordHash = await bcrypt.hash(body.password, 12);
         await sql`insert into users(name,password_hash,role,class_name)
           values(${name.trim()},${passwordHash},'teacher',${class_name.trim()})`;
+        await sql`insert into classes(class_name) values(${class_name.trim()})
+          on conflict(class_name) do nothing`;
       }
       return J({ ok: true });
     }
     if (method === 'DELETE') {
       await sql`delete from users where id=${b} and role in ('teacher','student')`;
+      return J({ ok: true });
+    }
+  }
+
+  if (a === 'messages') {
+    if (method === 'GET') {
+      const rows = isLocalDatabase()
+        ? await sql`select m.id,m.title,m.content,m.audience,m.message_date,
+            m.author_id,m.created_at,coalesce(u.name,'Former staff member') author_name
+          from messages m left join users u on u.id=m.author_id
+          where (${admin} or (${teacher} and (m.audience='teachers' or m.author_id=${session.id}))
+            or (${session.role === 'student'} and m.audience='students'))
+          order by m.message_date desc,m.created_at desc,m.id desc`
+        : await sql`select m.id,m.title,m.content,m.audience,
+            to_char(m.message_date,'YYYY-MM-DD') message_date,
+            m.author_id,m.created_at,coalesce(u.name,'Former staff member') author_name
+          from messages m left join users u on u.id=m.author_id
+          where (${admin} or (${teacher} and (m.audience='teachers' or m.author_id=${session.id}))
+            or (${session.role === 'student'} and m.audience='students'))
+          order by m.message_date desc,m.created_at desc,m.id desc`;
+      return J(rows);
+    }
+    if (method === 'POST') {
+      if (!admin && !teacher) return J({ error: 'Only administrators and teachers can send messages.' }, 403);
+      const title = body.title?.trim();
+      const content = body.content?.trim();
+      const audience = admin ? body.audience : 'students';
+      if (!title || title.length > 120 || !content || content.length > 5000) {
+        return J({ error: 'Enter a title (up to 120 characters) and message (up to 5000 characters).' }, 400);
+      }
+      if (!['students', 'teachers'].includes(audience)) {
+        return J({ error: 'Choose students or teachers as the message audience.' }, 400);
+      }
+      if (teacher && audience !== 'students') {
+        return J({ error: 'Teachers can only send messages to students.' }, 403);
+      }
+      if (!validDate(body.message_date)) return J({ error: 'Choose a valid message date.' }, 400);
+      const [created] = await sql`insert into messages(title,content,audience,message_date,author_id)
+        values(${title},${content},${audience},${body.message_date}::date,${session.id})
+        returning id`;
+      return J({ ok: true, id: created.id });
+    }
+    if (method === 'DELETE') {
+      if (!admin) return J({ error: 'Only administrators can delete messages.' }, 403);
+      if (!/^\d+$/.test(b || '')) return J({ error: 'Invalid message.' }, 400);
+      await sql`delete from messages where id=${Number(b)}`;
       return J({ ok: true });
     }
   }
@@ -193,10 +314,16 @@ async function handleRequest(req, { params }) {
     const requestedClass = (query.get('cls') || '').trim();
     const date = query.get('date');
     if (!validDate(date)) return J({ error: 'A valid date is required' }, 400);
-    if (!admin && (!requestedClass || requestedClass.toLowerCase() !== String(session.cls || '').trim().toLowerCase())) {
-      return J({ error: 'Enter the class assigned to your teacher account.' }, 403);
+    let className = requestedClass;
+    if (teacher) {
+      const [day] = await sql`select (${date}::date = current_date) as today`;
+      if (!day?.today) return J({ error: 'Teachers can only view attendance for today.' }, 400);
+      await ensureClassesTable();
+      const [registeredClass] = await sql`select class_name from classes
+        where lower(class_name)=lower(${requestedClass}) limit 1`;
+      if (!registeredClass) return J({ error: 'Choose a class registered by the administrator.' }, 400);
+      className = registeredClass.class_name;
     }
-    const className = admin ? requestedClass : String(session.cls).trim();
     const [attendanceSession] = await sql`select s.teacher_id,t.name teacher_name,s.marked_at
       from attendance_sessions s left join users t on t.id=s.teacher_id
       where s.class_name=${className} and s.date=${date}::date`;
@@ -257,13 +384,17 @@ async function handleRequest(req, { params }) {
       Number(record.student_id) < 1 || !allowedStatuses.includes(record.status))) {
       return J({ error: 'Each attendance record must include a valid student and status' }, 400);
     }
-    if (!admin && (!requestedClass || requestedClass.toLowerCase() !== String(session.cls || '').trim().toLowerCase())) {
-      return J({ error: 'Attendance can only be marked for the class assigned to your teacher account.' }, 403);
+    let className = requestedClass;
+    if (teacher) {
+      await ensureClassesTable();
+      const [registeredClass] = await sql`select class_name from classes
+        where lower(class_name)=lower(${requestedClass}) limit 1`;
+      if (!registeredClass) return J({ error: 'Choose a class registered by the administrator.' }, 400);
+      className = registeredClass.class_name;
     }
-    const className = admin ? requestedClass : String(session.cls).trim();
-    const [checks] = await sql`select (${date}::date > current_date) future,
+    const [checks] = await sql`select (${date}::date = current_date) today,
       exists(select 1 from holidays where date=${date}::date) holiday`;
-    if (!admin && checks.future) return J({ error: 'Cannot mark future dates' }, 400);
+    if (!admin && !checks.today) return J({ error: 'Teachers can only mark attendance for today.' }, 400);
     if (!admin && checks.holiday) return J({ error: 'Attendance is locked for this holiday or leave' }, 400);
     if (!admin) {
       if (records.length === 0) return J({ error: 'Mark at least one student before submitting attendance.' }, 400);
@@ -315,15 +446,33 @@ async function handle(req, context) {
   try {
     return await handleRequest(req, context);
   } catch (error) {
-    console.error('Attendance API request failed:', error);
-    if (!process.env.DATABASE_URL) {
-      return J({ error: 'The database is not configured. Add DATABASE_URL to the server environment and restart the app.' }, 503);
+    const database = getDatabaseConfig();
+    const databaseError = describeDatabaseError(error);
+    console.error('Attendance API request failed:', {
+      code: databaseError.code,
+      reason: databaseError.reason,
+      source: database.source,
+      host: database.host
+    });
+    if (process.env.VERCEL === '1' && !database.url) {
+      return J({
+        error: 'The database is not configured. Add a supported Postgres URL to the Vercel server environment, then redeploy.',
+        ...environmentStatus()
+      }, 503);
     }
-    if (!process.env.JWT_SECRET) {
+    if (!process.env.JWT_SECRET?.trim()) {
       return J({ error: 'Session security is not configured. Add JWT_SECRET to the server environment and restart the app.' }, 503);
     }
-    if (error?.code === '42P01') {
-      return J({ error: 'The database tables are not set up yet. Configure the server settings, then run the one-time database setup.' }, 503);
+    if (databaseError.reason !== 'unknown') {
+      return J({
+        error: databaseError.hint,
+        database: {
+          reason: databaseError.reason,
+          code: databaseError.code,
+          source: databaseError.source,
+          host: databaseError.host
+        }
+      }, 503);
     }
     return J({ error: 'The server could not complete this request. Check the database connection and server logs, then try again.' }, 500);
   }

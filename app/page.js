@@ -37,9 +37,9 @@ const today = () => {
 };
 const NAME = { P: 'Present', A: 'Absent', L: 'Leave' };
 const ROLE_TABS = {
-  admin: ['Students', 'Teachers', 'Attendance', 'Holidays', 'Report'],
-  teacher: ['Attendance'],
-  student: ['My Attendance']
+  admin: ['Students', 'Teachers', 'Attendance', 'Holidays', 'Report', 'Messages'],
+  teacher: ['Attendance', 'Messages'],
+  student: ['My Attendance', 'Messages']
 };
 const QUOTES = [
   { arabic: 'وَقُل رَّبِّ زِدْنِي عِلْمًا', translation: 'My Lord, increase me in knowledge.', reference: 'Qur’an · 20:114' },
@@ -52,7 +52,8 @@ const TAB_ICON_PATHS = {
   Attendance: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>,
   Holidays: <><path d="M20.9 13A9 9 0 0 1 11 3.1 9 9 0 1 0 20.9 13Z" /><path d="M16 3v4m-2-2h4" /></>,
   Report: <><path d="M3 3v18h18" /><path d="m19 9-5 5-4-4-5 5" /></>,
-  'My Attendance': <><rect x="4" y="3" width="16" height="18" rx="2" /><path d="M8 3v4m8-4v4M4 10h16" /><path d="m9 16 2 2 4-4" /></>
+  'My Attendance': <><rect x="4" y="3" width="16" height="18" rx="2" /><path d="M8 3v4m8-4v4M4 10h16" /><path d="m9 16 2 2 4-4" /></>,
+  Messages: <><path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.4 8.4 0 0 1 3.8-.9h.5a8.5 8.5 0 0 1 8 8Z" /></>
 };
 
 function Brand({ compact = false }) {
@@ -168,7 +169,8 @@ export default function Page() {
     Attendance: ['Attendance', me.role === 'admin' ? 'Record and review attendance for any class.' : `Take attendance for ${me.cls || 'your class'}.`],
     Holidays: ['Holidays & leave', 'Manage days off for the whole institution.'],
     Report: ['Attendance reports', 'Review attendance totals and percentages.'],
-    'My Attendance': ['My attendance', 'Your attendance record, progress, and institution holidays.']
+    'My Attendance': ['My attendance', 'Your attendance record, progress, and institution holidays.'],
+    Messages: ['Messages', 'Institution announcements and important updates.']
   };
   const [heading, description] = pageTitles[activeTab] || ['Portal', ''];
 
@@ -214,6 +216,7 @@ export default function Page() {
         {activeTab === 'Holidays' && <Holidays />}
         {activeTab === 'Report' && <Report />}
         {activeTab === 'My Attendance' && <Mine />}
+        {activeTab === 'Messages' && <Messages role={me.role} userId={me.id} />}
       </main>
     </div>
     <footer className="app-footer"><Brand compact /><span>© {new Date().getFullYear()} · A place to learn and grow</span></footer>
@@ -344,16 +347,29 @@ function Login({ onDone, serviceError, installPrompt, installMessage, installErr
 
 function Users({ role }) {
   const isStudent = role === 'student';
-  const empty = { name: '', password: '', class_name: '', roll_no: '', date_of_birth: '' };
+  const empty = {
+    name: '', password: '', class_name: '', roll_no: '', date_of_birth: '',
+    mother_name: '', father_name: '', father_occupation: '', mother_occupation: '', gender: ''
+  };
   const [list, setList] = useState([]);
+  const [classes, setClasses] = useState([]);
+  const [newClass, setNewClass] = useState('');
   const [form, setForm] = useState(empty);
   const [showPassword, setShowPassword] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const load = async () => {
     const result = await api('users?role=' + role);
-    if (result.error) setError(result.error);
-    else setList(result);
+    if (result.error) {
+      setError(result.error);
+      return;
+    }
+    setList(result);
+    if (!isStudent) {
+      const classResult = await api('classes');
+      if (classResult.error) setError(classResult.error);
+      else setClasses(classResult.map(item => item.class_name));
+    }
   };
   useEffect(() => { load(); }, [role]);
 
@@ -369,6 +385,21 @@ function Users({ role }) {
     setForm(empty);
     setMessage(`${isStudent ? 'Student' : 'Teacher'} added successfully.`);
     await load();
+  };
+  const addClass = async () => {
+    const className = newClass.trim();
+    if (!className) return;
+    setError('');
+    setMessage('');
+    const result = await api('classes', { class_name: className });
+    if (result.error) {
+      setError(result.error);
+      return;
+    }
+    setClasses(current => [...new Set([...current, result.class_name])].sort((a, b) => a.localeCompare(b)));
+    setForm(current => ({ ...current, class_name: result.class_name }));
+    setNewClass('');
+    setMessage(`Class ${result.class_name} is ready to assign.`);
   };
   const remove = async id => {
     if (!window.confirm(`Remove this ${role}? Their attendance records will also be deleted.`)) return;
@@ -390,13 +421,43 @@ function Users({ role }) {
       <form onSubmit={add}>
         <label className="field"><span className="field-label">Full name</span>
           <input className="field-control" value={form.name} onChange={update('name')} placeholder="Name" required /></label>
-        <label className="field"><span className="field-label">Class</span>
-          <input className="field-control" value={form.class_name} onChange={update('class_name')} placeholder="e.g. 10-A" required /></label>
+        {isStudent ? <label className="field"><span className="field-label">Class</span>
+          <input className="field-control" value={form.class_name} onChange={update('class_name')} placeholder="e.g. X, X1" required /></label>
+          : <div className="field">
+            <label className="field-label" htmlFor="teacher-class-select">Class name</label>
+            <select id="teacher-class-select" className="field-control" value={form.class_name}
+              onChange={update('class_name')} required>
+              <option value="">Choose a class</option>
+              {classes.map(className => <option key={className} value={className}>{className}</option>)}
+            </select>
+            <div className="toolbar">
+              <input className="field-control compact" value={newClass}
+                onChange={event => setNewClass(event.target.value)} placeholder="Create a class, e.g. X or X1"
+                aria-label="New class name" maxLength={80} />
+              <button className="secondary-button" type="button" onClick={addClass} disabled={!newClass.trim()}>
+                Add class
+              </button>
+            </div>
+          </div>}
         {isStudent ? <>
           <label className="field"><span className="field-label">Date of birth · student password</span>
             <input className="field-control" type="date" value={form.date_of_birth} onChange={update('date_of_birth')} required /></label>
           <label className="field"><span className="field-label">Roll number <span style={{ color: '#9299a8', textTransform: 'none', letterSpacing: 0 }}>(optional)</span></span>
             <input className="field-control" value={form.roll_no} onChange={update('roll_no')} placeholder="Roll number" /></label>
+          <label className="field"><span className="field-label">Mother’s name (optional)</span>
+            <input className="field-control" value={form.mother_name} onChange={update('mother_name')} placeholder="Mother’s name" /></label>
+          <label className="field"><span className="field-label">Father’s name (optional)</span>
+            <input className="field-control" value={form.father_name} onChange={update('father_name')} placeholder="Father’s name" /></label>
+          <label className="field"><span className="field-label">Father’s occupation (optional)</span>
+            <input className="field-control" value={form.father_occupation} onChange={update('father_occupation')} placeholder="Father’s occupation" /></label>
+          <label className="field"><span className="field-label">Mother’s occupation (optional)</span>
+            <input className="field-control" value={form.mother_occupation} onChange={update('mother_occupation')} placeholder="Mother’s occupation" /></label>
+          <label className="field"><span className="field-label">Gender (optional)</span>
+            <select className="field-control" value={form.gender} onChange={update('gender')}>
+              <option value="">Choose gender</option>
+              <option value="male">Male</option>
+              <option value="female">Female</option>
+            </select></label>
         </> : <label className="field"><span className="field-label">Set teacher password</span>
           <span className="password-wrap"><input className="field-control" type={showPassword ? 'text' : 'password'}
             value={form.password} onChange={update('password')} placeholder="Temporary or chosen password" required />
@@ -408,11 +469,17 @@ function Users({ role }) {
     <section className="card">
       <div className="card-heading"><div><h2>{isStudent ? 'Student' : 'Teacher'} directory</h2>
         <p>{list.length} {list.length === 1 ? 'record' : 'records'}</p></div></div>
-      <div className="table-wrap"><table><thead><tr><th>Name</th><th>Class</th>{isStudent && <th>Roll</th>}<th>Action</th></tr></thead>
+      <div className="table-wrap"><table><thead><tr><th>Name</th><th>Class</th>{isStudent && <>
+        <th>Roll</th><th>Mother</th><th>Father</th><th>Father’s occupation</th><th>Mother’s occupation</th><th>Gender</th>
+      </>}<th>Action</th></tr></thead>
         <tbody>{list.length ? list.map(user => <tr key={user.id}>
-          <td>{user.name}</td><td>{user.class_name}</td>{isStudent && <td>{user.roll_no || '—'}</td>}
+          <td>{user.name}</td><td>{user.class_name}</td>{isStudent && <>
+            <td>{user.roll_no || '—'}</td><td>{user.mother_name || '—'}</td><td>{user.father_name || '—'}</td>
+            <td>{user.father_occupation || '—'}</td><td>{user.mother_occupation || '—'}</td>
+            <td>{user.gender ? user.gender[0].toUpperCase() + user.gender.slice(1) : '—'}</td>
+          </>}
           <td><button className="danger-button" onClick={() => remove(user.id)} aria-label={`Remove ${user.name}`}>Remove</button></td>
-        </tr>) : <tr><td className="table-empty" colSpan={isStudent ? 4 : 3}>No records yet. Add the first {isStudent ? 'student' : 'teacher'} above.</td></tr>}</tbody>
+        </tr>) : <tr><td className="table-empty" colSpan={isStudent ? 9 : 3}>No records yet. Add the first {isStudent ? 'student' : 'teacher'} above.</td></tr>}</tbody>
       </table></div>
     </section>
   </div>;
@@ -420,6 +487,7 @@ function Users({ role }) {
 
 function Roster({ admin, teacherName }) {
   const [className, setClassName] = useState('');
+  const [classes, setClasses] = useState([]);
   const [activeClass, setActiveClass] = useState('');
   const [date, setDate] = useState(today());
   const [data, setData] = useState({ rows: [], holiday: null, locked: false, attendance_session: null });
@@ -429,6 +497,20 @@ function Roster({ admin, teacherName }) {
   const [busy, setBusy] = useState(false);
   const classPending = className.trim() !== activeClass;
   const isLocked = !admin && (date > today() || Boolean(data.holiday) || Boolean(data.locked));
+
+  useEffect(() => {
+    if (admin) return;
+    let active = true;
+    api('classes').then(result => {
+      if (!active) return;
+      if (result.error) {
+        setError(result.error);
+        return;
+      }
+      setClasses(result.map(item => item.class_name));
+    });
+    return () => { active = false; };
+  }, [admin]);
 
   useEffect(() => {
     if (!activeClass.trim()) {
@@ -476,15 +558,24 @@ function Roster({ admin, teacherName }) {
 
   return <div className="content-grid">
     <section className="card full">
-      <div className="card-heading"><div><h2>Class register</h2><p>{admin ? 'Choose any class and date to record attendance.' : 'Enter the class assigned to you, then mark Present or Absent.'}</p></div></div>
+      <div className="card-heading"><div><h2>Class register</h2><p>{admin ? 'Choose any class and date to record attendance.' : 'Choose any class to mark Present or Absent for today.'}</p></div></div>
       <Message text={error} />
       <Message text={message} type="success" />
       <div className="toolbar">
         <label className="field"><span className="field-label">Class name</span>
-          <input className="field-control compact" value={className} onChange={event => setClassName(event.target.value)}
-            placeholder={admin ? 'e.g. Group A' : 'Enter your assigned class'} /></label>
-        <label className="field"><span className="field-label">Attendance date</span>
-          <input className="field-control compact" type="date" value={date} max={admin ? undefined : today()} onChange={event => setDate(event.target.value)} /></label>
+          {admin
+            ? <input className="field-control compact" value={className} onChange={event => setClassName(event.target.value)}
+              placeholder="e.g. Group A" />
+            : <select className="field-control compact" value={className} onChange={event => {
+              setClassName(event.target.value);
+              setActiveClass('');
+            }}>
+              <option value="">Choose a class</option>
+              {classes.map(item => <option key={item} value={item}>{item}</option>)}
+            </select>}</label>
+        <label className="field"><span className="field-label">{admin ? 'Attendance date' : 'Today’s date'}</span>
+          <input className="field-control compact" type="date" value={admin ? date : today()} disabled={!admin}
+            onChange={admin ? event => setDate(event.target.value) : undefined} /></label>
         <button className="secondary-button" onClick={() => setActiveClass(className.trim())}
           disabled={!className.trim() || (!classPending && Boolean(data.rows.length))}>
           {admin ? 'Load class' : 'Load students'}
@@ -598,6 +689,123 @@ function Holidays() {
           <td><button className="danger-button" onClick={() => remove(holiday.id)} aria-label={`Remove ${holiday.title}`}>Remove</button></td>
         </tr>) : <tr><td className="table-empty" colSpan={4}>No holidays added yet.</td></tr>}</tbody>
       </table></div>
+    </section>
+  </div>;
+}
+
+function Messages({ role }) {
+  const canSend = role === 'admin' || role === 'teacher';
+  const [messages, setMessages] = useState([]);
+  const [form, setForm] = useState({ title: '', content: '', audience: 'students', message_date: today() });
+  const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const load = async () => {
+    const result = await api('messages');
+    if (result.error) setError(result.error);
+    else {
+      setError('');
+      setMessages(result);
+    }
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const send = async event => {
+    event.preventDefault();
+    setBusy(true);
+    setError('');
+    setNotice('');
+    const result = await api('messages', {
+      ...form,
+      audience: role === 'teacher' ? 'students' : form.audience
+    });
+    setBusy(false);
+    if (result.error) {
+      setError(result.error);
+      return;
+    }
+    setForm(current => ({ ...current, title: '', content: '' }));
+    setNotice('Message published.');
+    await load();
+  };
+
+  const remove = async id => {
+    if (!window.confirm('Delete this message for everyone?')) return;
+    const result = await api(`messages/${id}`, null, 'DELETE');
+    if (result.error) setError(result.error);
+    else {
+      setNotice('Message deleted.');
+      await load();
+    }
+  };
+
+  const dateLabel = value => new Date(`${value}T00:00:00`).toLocaleDateString(undefined, {
+    year: 'numeric', month: 'long', day: 'numeric'
+  });
+  const groupedMessages = messages.reduce((groups, item) => {
+    const date = String(item.message_date).slice(0, 10);
+    (groups[date] ||= []).push(item);
+    return groups;
+  }, {});
+
+  return <div className="content-grid">
+    <Message text={error} />
+    {canSend && <section className="card">
+      <div className="card-heading"><div><h2>Share an announcement</h2>
+        <p>{role === 'admin' ? 'Send an institution update to students or teachers.' : 'Send an announcement to all students.'}</p>
+      </div></div>
+      <Message text={notice} type="success" />
+      <form onSubmit={send}>
+        <label className="field"><span className="field-label">Title</span>
+          <input className="field-control" value={form.title} maxLength={120}
+            onChange={event => setForm({ ...form, title: event.target.value })} required /></label>
+        {role === 'admin' && <label className="field"><span className="field-label">Send to</span>
+          <select className="field-control" value={form.audience}
+            onChange={event => setForm({ ...form, audience: event.target.value })}>
+            <option value="students">Students</option>
+            <option value="teachers">Teachers</option>
+          </select></label>}
+        {role === 'teacher' && <p className="message warning">Recipient: all students. Teachers cannot send messages to other teachers.</p>}
+        <label className="field"><span className="field-label">Message date</span>
+          <input className="field-control" type="date" value={form.message_date}
+            onChange={event => setForm({ ...form, message_date: event.target.value })} required /></label>
+        <label className="field"><span className="field-label">Message</span>
+          <textarea className="field-control message-input" value={form.content} maxLength={5000}
+            onChange={event => setForm({ ...form, content: event.target.value })}
+            placeholder="Write an announcement for your school community…" required /></label>
+        <div className="message-form-footer"><span>{form.content.length}/5000</span>
+          <button className="primary-button" disabled={busy}>{busy ? 'Publishing…' : 'Publish message'}</button>
+        </div>
+      </form>
+    </section>}
+    <section className={`card${!canSend ? ' full' : ''}`}>
+      <div className="card-heading"><div><h2>{role === 'student' ? 'Messages for students' : 'Message board'}</h2>
+        <p>{messages.length} {messages.length === 1 ? 'message' : 'messages'} · newest dates first</p></div>
+        <button className="secondary-button" type="button" onClick={load}>Refresh</button>
+      </div>
+      {!messages.length ? <div className="table-empty">No messages have been posted yet.</div> :
+        Object.entries(groupedMessages).map(([date, items]) => <section className="message-date-group" key={date}>
+          <h3>{dateLabel(date)}</h3>
+          <div className="announcement-list">
+            {items.map(item => <article className="announcement-card" key={item.id}>
+              <div className="announcement-topline">
+                <span className={`announcement-audience audience-${item.audience}`}>
+                  {item.audience === 'students' ? 'Students' : 'Teachers'}
+                </span>
+                <time dateTime={date}>{dateLabel(date)}</time>
+              </div>
+              <h4>{item.title}</h4>
+              <p className="announcement-content">{item.content}</p>
+              <div className="announcement-footer">
+                <span>From {item.author_name}</span>
+                {role === 'admin' && <button className="danger-button" type="button"
+                  onClick={() => remove(item.id)} aria-label={`Delete ${item.title}`}>Delete</button>}
+              </div>
+            </article>)}
+          </div>
+        </section>)}
     </section>
   </div>;
 }
