@@ -14,6 +14,7 @@ const response = (data, status = 200) => NextResponse.json(data, {
   status,
   headers: { 'Cache-Control': 'no-store, max-age=0' }
 });
+const databaseBoolean = value => value === true || value === 't' || value === 1 || value === '1';
 
 function environmentStatus() {
   const database = getDatabaseConfig();
@@ -68,14 +69,18 @@ export async function GET() {
         exists(select 1 from sqlite_master where type='table' and name='users') as users_ready,
         exists(select 1 from sqlite_master where type='table' and name='attendance') as attendance_ready,
         exists(select 1 from sqlite_master where type='table' and name='holidays') as holidays_ready,
-        exists(select 1 from sqlite_master where type='table' and name='attendance_sessions') as sessions_ready`
+        exists(select 1 from sqlite_master where type='table' and name='attendance_sessions') as sessions_ready,
+        exists(select 1 from sqlite_master where type='table' and name='classes') as classes_ready,
+        exists(select 1 from sqlite_master where type='table' and name='messages') as messages_ready`
       : await sql`select 1 as database_connected,
-        to_regclass('public.users') is not null as users_ready,
-        to_regclass('public.attendance') is not null as attendance_ready,
-        to_regclass('public.holidays') is not null as holidays_ready,
-        to_regclass('public.attendance_sessions') is not null as sessions_ready`;
+        to_regclass('users') is not null as users_ready,
+        to_regclass('attendance') is not null as attendance_ready,
+        to_regclass('holidays') is not null as holidays_ready,
+        to_regclass('attendance_sessions') is not null as sessions_ready,
+        to_regclass('classes') is not null as classes_ready,
+        to_regclass('messages') is not null as messages_ready`;
 
-    if (Number(tables?.database_connected) !== 1) {
+    if (!databaseBoolean(tables?.database_connected)) {
       return response({
         ready: false, error: 'The database connection test did not return the expected result.',
         database: diagnostics.database,
@@ -83,10 +88,22 @@ export async function GET() {
       }, 503);
     }
 
-    if (!tables?.users_ready || !tables?.attendance_ready || !tables?.holidays_ready || !tables?.sessions_ready) {
+    const requiredTables = [
+      ['users', tables?.users_ready],
+      ['attendance', tables?.attendance_ready],
+      ['holidays', tables?.holidays_ready],
+      ['attendance_sessions', tables?.sessions_ready],
+      ['classes', tables?.classes_ready],
+      ['messages', tables?.messages_ready]
+    ];
+    const missingTables = requiredTables
+      .filter(([, exists]) => !databaseBoolean(exists))
+      .map(([name]) => name);
+    if (missingTables.length) {
       return response({
         ready: false,
-        error: 'Database is connected but attendance tables are missing. Configure SETUP_KEY and ADMIN_PASSWORD, then run POST /api/setup.',
+        error: `Database is connected, but these application tables are missing: ${missingTables.join(', ')}. Configure SETUP_KEY and ADMIN_PASSWORD, then run POST /api/setup.`,
+        missingTables,
         database: { ...diagnostics.database, connected: true },
         environment: diagnostics.environment
       }, 503);
